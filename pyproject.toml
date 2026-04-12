@@ -1,0 +1,56 @@
+[project]
+name = "medical-rag-chatbot"
+version = "1.0.0"
+description = "Medical RAG Chatbot with context-aware AI conversations"
+readme = "README.md"
+requires-python = ">=3.9"
+
+dependencies = [
+    "fastapi>=0.68.0",
+    "uvicorn[standard]>=0.15.0",
+    "httpx>=0.24.0",
+    "pydantic>=1.8.0",
+    "python-multipart",
+    "aiofiles",
+    "jinja2",
+    "python-jose[cryptography]",
+    "pandas",
+    "scikit-learn",
+    "numpy",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0.0",
+    "pytest-asyncio",
+    "pytest-cov",
+    "requests",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --tb=short --strict-markers"
+
+[tool.coverage.run]
+source = ["backend"]
+omit = ["*/tests/*", "*/venv/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "pass",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=6.0.0",
+    "pytest-asyncio",
+    "pytest-cov",
+    "requests",
+]

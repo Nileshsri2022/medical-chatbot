@@ -1,5 +1,5 @@
-# Enhanced Medical RAG Chatbot Dependencies
-# Healthcare
+# Universal dependencies file for uv
+# Install with: uv pip install -r requirements.txt
 
 # Core FastAPI and server
 fastapi>=0.68.0
@@ -17,7 +17,13 @@ aiofiles
 jinja2
 python-jose[cryptography]
 
-# Development and testing (optional)
+# Development and testing
 pytest>=6.0.0
 pytest-asyncio
+pytest-cov
 requests
+
+# Data processing (for RAG engine)
+pandas
+scikit-learn
+numpy
