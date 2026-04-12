@@ -33,3 +33,7 @@ chromadb>=0.4.0
 sentence-transformers>=2.2.0
 pypdf>=3.0.0
 rank-bm25>=0.2
+
+# Logging and monitoring
+loguru>=0.7.0
+prometheus-client>=0.18.0

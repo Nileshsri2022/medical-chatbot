@@ -14,6 +14,7 @@ from ..config import config
 from ..rag import MedicalRAGEnrichmentEngine
 from ..core.security import InputSanitizer, MedicalDisclaimer
 from ..core.reliability import get_llm_health_checker, get_circuit_breaker
+from ..core.monitoring import get_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,10 @@ async def chat(
             response,
             symptoms=result.get("symptoms", []),
             entities=result.get("entities", {}),
+        )
+
+        get_metrics().record_chat(
+            success=True, symptoms_count=len(result.get("symptoms", []))
         )
 
         return {
@@ -236,3 +241,12 @@ async def test_rag():
         "results": results,
         "final_context": _rag_engine.get_context(session_id),
     }
+
+
+@router.get("/metrics")
+async def metrics():
+    """Prometheus metrics endpoint"""
+    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+    from fastapi import Response
+
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
