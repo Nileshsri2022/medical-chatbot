@@ -9,13 +9,18 @@ env/
 ENV/
 .venv/
 
-# Environment
+# Environment - NEVER commit secrets
 .env
 .env.local
+.env.*
+!.env.example
 
 # Logs
 *.log
 logs/
+*.pid
+rag_server.log
+frontend_server.log
 
 # IDE
 .idea/
@@ -27,6 +32,24 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Project specific
+# Database
 *.db
-*.pid
+*.sqlite
+*.sqlite3
+backend/data/medical_chats.db
+
+# Ruff cache
+.ruff_cache/
+
+# Kilo/Agent cache
+.kilo/
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
+__pycache__/
+
+# Node (if used)
+node_modules/
+package-lock.json
