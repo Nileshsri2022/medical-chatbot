@@ -1,0 +1,17 @@
+{
+  "worktrees": {
+    "wt-1775978081980-1": {
+      "branch": "receptive-ketchup",
+      "path": "e:\\medical-chatbot-project\\Medical-RAG-Chatbot\\.kilo\\worktrees\\receptive-ketchup",
+      "parentBranch": "main",
+      "createdAt": "2026-04-12T07:14:41.980Z",
+      "remote": "origin"
+    }
+  },
+  "sessions": {
+    "ses_27f750f45ffehsuLWCRoorLFRl": {
+      "worktreeId": "wt-1775978081980-1",
+      "createdAt": "2026-04-12T07:14:42.932Z"
+    }
+  }
+}

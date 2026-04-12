@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # LLM Backend Server
+  llm-server:
+    build: .
+    container_name: medical-rag-llm
+    ports:
+      - "8001:8001"
+    environment:
+      - LLM_BASE_URL=${LLM_BASE_URL}
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_MODEL=${LLM_MODEL}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # RAG Enhancement Server
+  rag-server:
+    build: .
+    container_name: medical-rag-server
+    ports:
+      - "8002:8002"
+    environment:
+      - ORIGINAL_LLM_URL=http://llm-server:8001
+      - RAG_SERVER_PORT=8002
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
+      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-30}
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-30}
+      - HTTP_MAX_KEEPALIVE=${HTTP_MAX_KEEPALIVE:-20}
+      - HTTP_MAX_CONNECTIONS=${HTTP_MAX_CONNECTIONS:-100}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    depends_on:
+      llm-server:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend Server
+  frontend:
+    build: .
+    container_name: medical-rag-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - RAG_ENDPOINT=http://rag-server:8002
+      - LLM_ENDPOINT=http://llm-server:8001
+    depends_on:
+      - rag-server
+    restart: unless-stopped
+    command: ["python", "-m", "http.server", "3000", "-d", "frontend"]
+
+networks:
+  default:
+    name: medical-rag-network

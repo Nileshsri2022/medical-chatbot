@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical Chatbot - Healthcare</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="rag-indicator">🧠 RAG Enhanced</div>
+            <h1>
+                <span class="connection-status" id="connectionStatus"></span>
+                Medical AI Assistant
+            </h1>
+            <p>Intelligent Conversation with Memory & Context Analysis</p>
+        </div>
+        
+        <div class="chat-main">
+            <div class="chat-messages" id="chatMessages">
+                <div class="message system-message">
+                    <div class="message-content">
+                        🧠 <strong>RAG Medical Assistant</strong><br>
+                        This advanced system provides contextual medical conversations with:<br>
+                        • Conversation memory and continuity<br>
+                        • Medical entity recognition<br>
+                        • Symptom analysis and urgency assessment<br>
+                        • Intelligent follow-up questions<br>
+                        <em>Initializing enhanced AI system...</em>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="context-panel" id="contextPanel">
+                <div class="context-section">
+                    <h4>🎯 Session Info</h4>
+                    <div class="conversation-stats" id="sessionStats">
+                        <div>Session: <span id="sessionId">Not started</span></div>
+                        <div>Interactions: <span id="interactionCount">0</span></div>
+                        <div>State: <span id="conversationState">initial</span></div>
+                    </div>
+                </div>
+                
+                <div class="context-section">
+                    <h4>🏥 Current Analysis</h4>
+                    <div id="currentSymptoms">
+                        <div class="context-item">
+                            <span>No symptoms detected</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="context-section">
+                    <h4>🧠 Accumulated Context</h4>
+                    <div id="accumulatedContext">
+                        <div class="context-item">
+                            <span>Building conversation context...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="context-section">
+                    <h4>⚡ System Status</h4>
+                    <div id="systemStatus">
+                        <div class="context-item">
+                            <span>RAG Engine:</span>
+                            <span id="ragStatus">Initializing</span>
+                        </div>
+                        <div class="context-item">
+                            <span>LLM Backend:</span>
+                            <span id="llmStatus">Not connected</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chat-input">
+            <div class="input-controls">
+                <div class="control-group">
+                    <label>Max Tokens:</label>
+                    <input type="number" id="maxTokens" value="200" min="50" max="500">
+                </div>
+                <div class="control-group">
+                    <label>Temperature:</label>
+                    <input type="number" id="temperature" value="0.7" min="0" max="2" step="0.1">
+                </div>
+                <div class="control-group">
+                    <label>Mode:</label>
+                    <select id="responseMode">
+                        <option value="enhanced">RAG Mode</option>
+                        <option value="direct">Direct LLM</option>
+                    </select>
+                </div>
+                <div class="session-controls">
+                    <button class="btn-small btn-info" onclick="testConnection()" id="testButton">Test Connection</button>
+                    <button class="btn-small btn-warning" onclick="resetConversation()" id="resetButton">Reset Session</button>
+                </div>
+            </div>
+            <div class="input-group">
+                <textarea id="messageInput" placeholder="Describe your symptoms or health concerns..." 
+                         onkeypress="handleKeyPress(event)" rows="1"></textarea>
+                <button id="sendButton" onclick="sendMessage()">
+                    <span id="sendButtonText">Send</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

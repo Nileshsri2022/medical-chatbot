@@ -1,0 +1,23 @@
+# Enhanced Medical RAG Chatbot Dependencies
+# Healthcare
+
+# Core FastAPI and server
+fastapi>=0.68.0
+uvicorn[standard]>=0.15.0
+
+# HTTP client for LLM backend communication
+httpx>=0.24.0
+
+# Data validation and serialization
+pydantic>=1.8.0
+
+# Optional enhancements
+python-multipart
+aiofiles
+jinja2
+python-jose[cryptography]
+
+# Development and testing (optional)
+pytest>=6.0.0
+pytest-asyncio
+requests
