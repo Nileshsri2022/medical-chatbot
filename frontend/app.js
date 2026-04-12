@@ -39,7 +39,7 @@
 
         async function loadConversationHistory() {
             try {
-                const response = await fetch(`${RAG_ENDPOINT}/conversation-history/${sessionId}`);
+                const response = await fetch(`${RAG_ENDPOINT}/api/v1/conversation-history/${sessionId}`);
                 if (response.ok) {
                     const data = await response.json();
                     if (data.conversation_context && data.conversation_context.conversation_history) {
@@ -82,7 +82,7 @@
             
             try {
                 // Test RAG server
-                const ragResponse = await fetch(`${RAG_ENDPOINT}/health`, {
+                const ragResponse = await fetch(`${RAG_ENDPOINT}/api/v1/health`, {
                     method: 'GET',
                     headers: { 'Content-Type': 'application/json' }
                 });
@@ -249,8 +249,8 @@ Please use the appropriate mode based on available connections.`);
                 let response;
                 
                 if (mode === 'enhanced') {
-                    // Use RAG enhancement STREAMING
-                    response = await fetch(`${RAG_ENDPOINT}/enhanced-chat-stream`, {
+                    // Use RAG enhancement
+                    response = await fetch(`${RAG_ENDPOINT}/api/v1/chat`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -262,54 +262,21 @@ Please use the appropriate mode based on available connections.`);
                     });
                     
                     if (!response.ok) {
-                        throw new Error('Failed to get streaming response');
+                        throw new Error('Failed to get response');
                     }
                     
-                    const reader = response.body.getReader();
-                    const decoder = new TextDecoder();
-                    let textContainer = null;
-                    let responseTime = 0;
-                    let buffer = '';
+                    // Get JSON response (non-streaming)
+                    const data = await response.json();
                     
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        
-                        buffer += decoder.decode(value, { stream: true });
-                        const lines = buffer.split('\n\n');
-                        buffer = lines.pop(); // Keep the last incomplete chunk in the buffer
-                        
-                        for (let block of lines) {
-                            if (block.startsWith('data: ') && block !== 'data: [DONE]') {
-                                try {
-                                    const data = JSON.parse(block.substring(6));
-                                    
-                                    if (data.type === 'metadata') {
-                                        removeLoadingMessage();
-                                        const endTime = Date.now();
-                                        responseTime = (endTime - startTime) / 1000;
-                                        
-                                        data.response = ''; // Empty initial response
-                                        addEnhancedMessage(data, responseTime);
-                                        updateContextPanel(data);
-                                        conversationContext = data.conversation_context;
-                                        
-                                        // Grab the latest message content element we just added
-                                        const contents = document.querySelectorAll('.enhanced-message .message-content');
-                                        const latestContent = contents[contents.length - 1];
-                                        
-                                        // Create a text container specifically for the stream
-                                        textContainer = document.createElement('span');
-                                        latestContent.appendChild(textContainer);
-                                    } else if (data.type === 'chunk' && textContainer) {
-                                        textContainer.innerHTML += data.text.replace(/\n/g, '<br/>');
-                                        const container = document.getElementById('chatMessages');
-                                        container.scrollTop = container.scrollHeight;
-                                    }
-                                } catch (e) { }
-                            }
-                        }
-                    }
+                    removeLoadingMessage();
+                    const endTime = Date.now();
+                    const responseTime = (endTime - startTime) / 1000;
+                    
+                    // Add the response message
+                    addEnhancedMessage(data, responseTime);
+                    updateContextPanel(data);
+                    conversationContext = data.conversation_context;
+                    
                     interactionCount++;
                     updateSessionStats();
                     
@@ -526,7 +493,7 @@ Please use the appropriate mode based on available connections.`);
         async function resetConversation() {
             if (confirm('Are you sure you want to reset the conversation? All context will be lost.')) {
                 try {
-                    await fetch(`${RAG_ENDPOINT}/reset-conversation/${sessionId}`, {
+                    await fetch(`${RAG_ENDPOINT}/api/v1/conversation/${sessionId}`, {
                         method: 'DELETE'
                     });
                     
