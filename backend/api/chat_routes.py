@@ -13,6 +13,7 @@ from .dependencies import get_http_client, get_client_id, check_rate_limit, requ
 from ..config import config
 from ..rag import MedicalRAGEnrichmentEngine
 from ..core.security import InputSanitizer, MedicalDisclaimer
+from ..core.reliability import get_llm_health_checker, get_circuit_breaker
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +43,18 @@ async def root():
 async def health_check(request: Request):
     """Health check endpoint"""
     client_id = request.client.host if request.client else "unknown"
+
+    llm_health = await get_llm_health_checker().check_with_circuit()
+    circuit_status = get_circuit_breaker().get_status()
+
     return {
-        "status": "healthy",
+        "status": "healthy" if llm_health.get("status") != "unhealthy" else "degraded",
         "timestamp": "",
         "version": "1.0.0",
         "rag_engine_status": "ready",
-        "original_llm_status": "unknown",
+        "original_llm_status": llm_health.get("status", "unknown"),
+        "llm_response_time": llm_health.get("response_time"),
+        "circuit_breaker": circuit_status,
         "active_sessions": _rag_engine.conversation_memory.active_sessions_count,
     }
 
@@ -165,6 +172,20 @@ async def debug_session(session_id: str):
             else None,
         },
     }
+
+
+@router.get("/circuit-status")
+async def circuit_status():
+    """Get circuit breaker status"""
+    return get_circuit_breaker().get_status()
+
+
+@router.post("/circuit-reset")
+async def reset_circuit():
+    """Reset circuit breaker to closed state"""
+    cb = get_circuit_breaker()
+    cb._reset()
+    return {"status": "reset", "circuit_state": cb.state.value}
 
 
 @router.get("/test-rag")
