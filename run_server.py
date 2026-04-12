@@ -12,10 +12,9 @@ import signal
 
 
 def print_banner():
-    print("""
-🏥 Medical RAG Chatbot System
-===============================""")
-    print("🧠 Advanced Conversational AI with Memory & Context")
+    print("Medical RAG Chatbot System")
+    print("=" * 30)
+    print("Advanced Conversational AI with Memory & Context")
     print()
 
 
@@ -31,10 +30,10 @@ def check_port(port):
 def start_server(port, module_path, log_file):
     """Start a server process"""
     if check_port(port):
-        print(f"⚠️  Port {port} is already in use")
+        print(f"Port {port} is already in use")
         return None
 
-    print(f"▶ Starting {module_path} on port {port}...")
+    print(f"Starting {module_path} on port {port}...")
 
     log = open(log_file, "w")
     proc = subprocess.Popen(
@@ -57,36 +56,41 @@ def start_server(port, module_path, log_file):
 
 def main():
     project_root = os.path.dirname(os.path.abspath(__file__))
-    backend_dir = os.path.join(project_root, "backend")
-
-    os.chdir(backend_dir)
+    os.chdir(project_root)
 
     print_banner()
 
     print("Starting RAG Enhancement Server...")
 
-    start_new_session = sys.platform != "win32"
-
     proc = subprocess.Popen(
-        [sys.executable, "medical_rag_server.py"],
+        [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "backend.medical_rag_server:app",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "8002",
+        ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        start_new_session=start_new_session,
+        cwd=project_root,
     )
 
-    time.sleep(3)
+    time.sleep(5)
 
     if proc.poll() is not None:
-        print("❌ Server failed to start. Check backend/medical_rag_server.py")
+        print("Server failed to start. Check backend/medical_rag_server.py")
         sys.exit(1)
 
-    print(f"✅ RAG Server started (PID: {proc.pid})")
+    print(f"RAG Server started (PID: {proc.pid})")
     print()
-    print("📍 Access Points:")
-    print("   📱 Frontend:   http://localhost:3000/enhanced-medical-chatbot.html")
-    print("   🔌 RAG API:    http://localhost:8002")
-    print("   📖 API Docs:  http://localhost:8002/docs")
-    print("   ❤️  Health:    http://localhost:8002/api/v1/health")
+    print("Access Points:")
+    print("   Frontend:   http://localhost:3000/enhanced-medical-chatbot.html")
+    print("   RAG API:    http://localhost:8002")
+    print("   API Docs:   http://localhost:8002/docs")
+    print("   Health:     http://localhost:8002/api/v1/health")
     print()
     print("Press Ctrl+C to stop")
     print()
@@ -95,16 +99,16 @@ def main():
         while True:
             time.sleep(1)
             if proc.poll() is not None:
-                print("❌ Server stopped unexpectedly")
+                print("Server stopped unexpectedly")
                 break
     except KeyboardInterrupt:
-        print("\n🛑 Stopping server...")
+        print("\nStopping server...")
         proc.terminate()
         try:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
-        print("✅ Server stopped")
+        print("Server stopped")
 
 
 if __name__ == "__main__":
