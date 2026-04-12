@@ -6,7 +6,7 @@ Implements HIPAA-compliant security measures
 import re
 import uuid
 import logging
-from typing import Optional, Callable
+from typing import Optional, Callable, Dict, List
 from functools import wraps
 from datetime import datetime, timedelta
 from fastapi import Request, HTTPException, Depends
@@ -48,6 +48,12 @@ class SecurityConfig:
         "for professional medical advice, diagnosis, or treatment. Always seek "
         "the advice of your physician or other qualified health provider with any "
         "questions you may have regarding a medical condition."
+    )
+
+    URGENT_WARNING = (
+        "If you are experiencing chest pain, difficulty breathing, severe bleeding, "
+        "signs of stroke, or loss of consciousness, please seek immediate medical attention "
+        "by calling your local emergency services."
     )
 
 
@@ -110,6 +116,54 @@ class InputSanitizer:
             raise HTTPException(status_code=400, detail="Invalid input detected")
 
         return InputSanitizer.sanitize(message)
+
+
+class MedicalDisclaimer:
+    """Handles medical disclaimers for responses"""
+
+    @staticmethod
+    def should_show_warning(symptoms: list, entities: dict) -> bool:
+        """Determine if urgent warning should be shown"""
+        urgency_indicators = entities.get("urgency_indicators", [])
+        if urgency_indicators:
+            return True
+
+        high_urgency_symptoms = [
+            "chest pain",
+            "shortness of breath",
+            "severe bleeding",
+            "can't breathe",
+        ]
+        for symptom in symptoms:
+            symptom_str = (
+                symptom.get("symptom", "").lower()
+                if isinstance(symptom, dict)
+                else str(symptom).lower()
+            )
+            if any(urgent in symptom_str for urgent in high_urgency_symptoms):
+                return True
+
+        return False
+
+    @classmethod
+    def add_disclaimer(
+        cls,
+        response: str,
+        symptoms: list = None,
+        entities: dict = None,
+    ) -> str:
+        """Add appropriate disclaimer to response"""
+        if not symptoms:
+            symptoms = []
+
+        parts = [response]
+
+        if cls.should_show_warning(symptoms, entities or {}):
+            parts.append(f"🚨 {SecurityConfig.URGENT_WARNING}")
+
+        parts.append(f"⚠️ {SecurityConfig.MEDICAL_DISCLAIMER}")
+
+        return "\n\n".join(parts)
 
 
 class AuditLogger:

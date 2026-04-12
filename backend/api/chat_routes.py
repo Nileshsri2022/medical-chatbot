@@ -9,9 +9,10 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 import logging
 
-from .dependencies import get_http_client, get_client_id, check_rate_limit
+from .dependencies import get_http_client, get_client_id, check_rate_limit, require_auth
 from ..config import config
 from ..rag import MedicalRAGEnrichmentEngine
+from ..core.security import InputSanitizer, MedicalDisclaimer
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,11 @@ class ChatRequest:
 
 
 @router.post("/chat")
-async def chat(chat_request: ChatRequestModel, request: Request = None):
+async def chat(
+    chat_request: ChatRequestModel,
+    request: Request = None,
+    _auth: bool = Depends(require_auth),
+):
     """Enhanced chat with RAG"""
     client_id = request.client.host if request and request.client else "unknown"
 
@@ -69,12 +74,22 @@ async def chat(chat_request: ChatRequestModel, request: Request = None):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
     try:
+        validated_message = InputSanitizer.validate_message(chat_request.message)
+
         result = _rag_engine.process_user_input(
-            chat_request.message, chat_request.session_id
+            validated_message, chat_request.session_id
+        )
+
+        response = result.get("enriched_prompt", "")
+
+        response = MedicalDisclaimer.add_disclaimer(
+            response,
+            symptoms=result.get("symptoms", []),
+            entities=result.get("entities", {}),
         )
 
         return {
-            "response": result.get("enriched_prompt", ""),
+            "response": response,
             "conversation_context": result.get("conversation_context", {}),
             "extracted_entities": result.get("entities", {}),
             "symptoms_detected": result.get("symptoms", []),

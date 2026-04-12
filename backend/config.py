@@ -38,6 +38,10 @@ class ServerConfig:
     default_max_tokens: int = 200
     default_temperature: float = 0.7
 
+    # Security
+    api_key: Optional[str] = None
+    require_auth: bool = False
+
     @classmethod
     def from_env(cls) -> "ServerConfig":
         """Load configuration from environment variables"""
@@ -58,6 +62,8 @@ class ServerConfig:
             cache_max_size=int(os.getenv("CACHE_MAX_SIZE", "100")),
             default_max_tokens=int(os.getenv("DEFAULT_MAX_TOKENS", "200")),
             default_temperature=float(os.getenv("DEFAULT_TEMPERATURE", "0.7")),
+            api_key=os.getenv("API_KEY"),
+            require_auth=os.getenv("REQUIRE_AUTH", "false").lower() == "true",
         )
 
 

@@ -129,3 +129,27 @@ async def verify_rate_limit(request: Request) -> None:
         raise HTTPException(
             status_code=429, detail="Rate limit exceeded. Please try again later."
         )
+
+
+def verify_api_key(api_key: Optional[str] = None) -> bool:
+    """Verify API key if authentication is required"""
+    if not config.require_auth:
+        return True
+
+    if not api_key:
+        return False
+
+    if config.api_key and api_key == config.api_key:
+        return True
+
+    return False
+
+
+async def require_auth(api_key: Optional[str] = None) -> bool:
+    """Dependency that requires API key authentication"""
+    if not verify_api_key(api_key):
+        raise HTTPException(
+            status_code=401,
+            detail="API key required. Set REQUIRE_AUTH=true and provide API_KEY.",
+        )
+    return True
