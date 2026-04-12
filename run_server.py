@@ -56,19 +56,29 @@ def start_server(port, module_path, log_file):
 
 
 def main():
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    os.chdir("backend")
+    project_root = os.path.dirname(os.path.abspath(__file__))
+    backend_dir = os.path.join(project_root, "backend")
+
+    os.chdir(backend_dir)
 
     print_banner()
 
-    # Start RAG server
     print("Starting RAG Enhancement Server...")
+
+    start_new_session = sys.platform != "win32"
 
     proc = subprocess.Popen(
         [sys.executable, "medical_rag_server.py"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=start_new_session,
     )
+
+    time.sleep(3)
+
+    if proc.poll() is not None:
+        print("❌ Server failed to start. Check backend/medical_rag_server.py")
+        sys.exit(1)
 
     print(f"✅ RAG Server started (PID: {proc.pid})")
     print()
@@ -82,11 +92,18 @@ def main():
     print()
 
     try:
-        proc.wait()
+        while True:
+            time.sleep(1)
+            if proc.poll() is not None:
+                print("❌ Server stopped unexpectedly")
+                break
     except KeyboardInterrupt:
         print("\n🛑 Stopping server...")
         proc.terminate()
-        proc.wait()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
         print("✅ Server stopped")
 
 
