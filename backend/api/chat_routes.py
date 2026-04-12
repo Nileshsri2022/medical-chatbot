@@ -324,3 +324,32 @@ async def metrics():
     from fastapi import Response
 
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@router.get("/performance-profile")
+async def performance_profile():
+    """Get performance profiling results"""
+    from ..core.profiling import get_profiler
+
+    profiler = get_profiler()
+    results = profiler.get_results()
+
+    return {
+        "profiling_enabled": profiler.enabled,
+        "results": {
+            name: {
+                "total_time": result.total_time,
+                "call_count": result.call_count,
+            }
+            for name, result in results.items()
+        },
+    }
+
+
+@router.post("/performance-profile/reset")
+async def reset_performance_profile():
+    """Reset performance profiling results"""
+    from ..core.profiling import get_profiler
+
+    get_profiler().reset()
+    return {"status": "reset"}

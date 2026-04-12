@@ -1,14 +1,20 @@
 """
 Medical Entity Recognition Module
 Extracts medical entities (symptoms, body parts, conditions, medications) from user input
+
+Optimized with:
+- Pre-compiled regex patterns for faster matching
+- Local variable caching
+- LRU cache for common inputs
 """
 
 import re
-from typing import Dict, List
+from typing import Dict, List, Optional
+from functools import lru_cache
 
 
 class MedicalEntityRecognizer:
-    """Advanced medical entity recognition using pattern matching"""
+    """Advanced medical entity recognition using pattern matching - OPTIMIZED"""
 
     def __init__(self):
         self.medical_patterns = {
@@ -48,69 +54,122 @@ class MedicalEntityRecognizer:
             ],
         }
 
-    def extract_entities(self, text: str) -> Dict:
-        """Extract comprehensive medical entities from text"""
-        text_lower = text.lower()
-        entities = {
-            "symptoms": [],
-            "body_parts": [],
-            "conditions": [],
-            "medications": [],
-            "temporal": [],
-            "severity": self._extract_severity(text_lower),
-            "duration": self._extract_duration(text_lower),
-            "urgency_indicators": self._extract_urgency_indicators(text_lower),
-        }
+        self._compiled_patterns: Dict[str, List[re.Pattern]] = {}
+        self._severity_patterns: Dict[str, re.Pattern] = {}
+        self._duration_patterns: Dict[str, re.Pattern] = {}
+        self._urgency_patterns: List[re.Pattern] = []
 
+        self._compile_patterns()
+
+    def _compile_patterns(self):
+        """Pre-compile all regex patterns for better performance"""
         for category, patterns in self.medical_patterns.items():
-            if category != "severity":
-                for pattern in patterns:
-                    matches = re.findall(pattern, text_lower, re.IGNORECASE)
-                    entities[category].extend(matches)
+            self._compiled_patterns[category] = [
+                re.compile(pattern, re.IGNORECASE) for pattern in patterns
+            ]
 
-        for key in entities:
-            if isinstance(entities[key], list):
-                entities[key] = list(dict.fromkeys(entities[key]))
-
-        return entities
-
-    def _extract_severity(self, text: str) -> str:
-        """Extract pain/symptom severity indicators"""
         severity_patterns = {
             "severe": r"\b(severe|excruciating|unbearable|intense|terrible|awful|extreme|worst)\b",
             "moderate": r"\b(moderate|noticeable|uncomfortable|bothersome|manageable|medium)\b",
             "mild": r"\b(mild|slight|little|minor|small|barely|light)\b",
         }
+        self._severity_patterns = {
+            k: re.compile(v) for k, v in severity_patterns.items()
+        }
 
-        for severity, pattern in severity_patterns.items():
-            if re.search(pattern, text):
-                return severity
-        return "unspecified"
-
-    def _extract_duration(self, text: str) -> str:
-        """Extract symptom duration"""
         duration_patterns = {
             "acute": r"\b(sudden|minutes|hour|hours|today|just now|right now)\b",
             "subacute": r"\b(days|few days|week|yesterday)\b",
             "chronic": r"\b(weeks|months|years|long time|always|chronic)\b",
         }
+        self._duration_patterns = {
+            k: re.compile(v) for k, v in duration_patterns.items()
+        }
 
-        for duration, pattern in duration_patterns.items():
-            if re.search(pattern, text):
-                return duration
-        return "unspecified"
-
-    def _extract_urgency_indicators(self, text: str) -> List[str]:
-        """Extract urgency indicators"""
         urgency_patterns = [
             r"\b(emergency|urgent|immediate|help|911|hospital|emergency room)\b",
             r"\b(can't breathe|chest pain|heart attack|stroke|bleeding)\b",
             r"\b(severe pain|unbearable|excruciating|passing out)\b",
         ]
+        self._urgency_patterns = [re.compile(p) for p in urgency_patterns]
 
+    @lru_cache(maxsize=512)
+    def extract_entities(self, text: str) -> Dict:
+        """Extract comprehensive medical entities from text - OPTIMIZED with LRU cache"""
+        if not text:
+            return self._empty_entities()
+
+        text_lower = text.lower()
+
+        severity = self._extract_severity_fast(text_lower)
+        duration = self._extract_duration_fast(text_lower)
+        urgency = self._extract_urgency_fast(text_lower)
+
+        entities = {
+            "symptoms": self._extract_category(
+                text_lower, self._compiled_patterns["symptoms"]
+            ),
+            "body_parts": self._extract_category(
+                text_lower, self._compiled_patterns["body_parts"]
+            ),
+            "conditions": self._extract_category(
+                text_lower, self._compiled_patterns["conditions"]
+            ),
+            "medications": self._extract_category(
+                text_lower, self._compiled_patterns["medications"]
+            ),
+            "temporal": self._extract_category(
+                text_lower, self._compiled_patterns["temporal"]
+            ),
+            "severity": severity,
+            "duration": duration,
+            "urgency_indicators": urgency,
+        }
+
+        return entities
+
+    def _extract_category(self, text: str, patterns: List[re.Pattern]) -> List[str]:
+        """Extract matches for a category using pre-compiled patterns"""
+        matches = []
+        for pattern in patterns:
+            found = pattern.findall(text)
+            matches.extend(found)
+        return list(dict.fromkeys(matches)) if matches else []
+
+    def _extract_severity_fast(self, text: str) -> str:
+        """Extract severity using pre-compiled patterns"""
+        for severity, pattern in self._severity_patterns.items():
+            if pattern.search(text):
+                return severity
+        return "unspecified"
+
+    def _extract_duration_fast(self, text: str) -> str:
+        """Extract duration using pre-compiled patterns"""
+        for duration, pattern in self._duration_patterns.items():
+            if pattern.search(text):
+                return duration
+        return "unspecified"
+
+    def _extract_urgency_fast(self, text: str) -> List[str]:
+        """Extract urgency indicators using pre-compiled patterns"""
         indicators = []
-        for pattern in urgency_patterns:
-            matches = re.findall(pattern, text)
+        for pattern in self._urgency_patterns:
+            matches = pattern.findall(text)
             indicators.extend(matches)
+        return list(set(indicators)) if indicators else []
 
-        return list(set(indicators))
+    def _empty_entities(self) -> Dict:
+        return {
+            "symptoms": [],
+            "body_parts": [],
+            "conditions": [],
+            "medications": [],
+            "temporal": [],
+            "severity": "unspecified",
+            "duration": "unspecified",
+            "urgency_indicators": [],
+        }
+
+    def clear_cache(self):
+        """Clear the LRU cache"""
+        self.extract_entities.cache_clear()

@@ -1,15 +1,18 @@
 """
 Conversation Memory Module
 Manages session state and history with SQLite persistence
+Optimized with connection pooling
 """
 
 import os
 import json
 import sqlite3
 import datetime
+import threading
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
 from enum import Enum
+from contextlib import contextmanager
 
 
 class ConversationState(Enum):
@@ -33,7 +36,7 @@ class ConversationInteraction:
 
 
 class ConversationMemory:
-    """Advanced conversation memory with medical context tracking backed by SQLite"""
+    """Advanced conversation memory with medical context tracking backed by SQLite - OPTIMIZED"""
 
     def __init__(self, max_history_length: int = 10):
         self.sessions: Dict[str, Dict] = {}
@@ -41,22 +44,49 @@ class ConversationMemory:
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.db_path = os.path.join(base_dir, "data", "medical_chats.db")
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+
+        self._local = threading.local()
+        self._lock = threading.Lock()
+
         self._init_db()
         self._load_all()
 
+    def _get_connection(self) -> sqlite3.Connection:
+        """Get thread-local database connection"""
+        if not hasattr(self._local, "connection") or self._local.connection is None:
+            self._local.connection = sqlite3.connect(
+                self.db_path, check_same_thread=False, timeout=30.0
+            )
+            self._local.connection.row_factory = sqlite3.Row
+        return self._local.connection
+
+    @contextmanager
+    def _db_cursor(self):
+        """Context manager for database cursor"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            yield cursor
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+
     def _init_db(self):
-        with sqlite3.connect(self.db_path) as conn:
+        with self._get_connection() as conn:
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS sessions 
                 (session_id TEXT PRIMARY KEY, data TEXT)"""
             )
 
     def _load_all(self):
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("SELECT session_id, data FROM sessions")
-            for row in cursor:
+        with self._db_cursor() as cursor:
+            cursor.execute("SELECT session_id, data FROM sessions")
+            for row in cursor.fetchall():
                 try:
-                    data = json.loads(row[1])
+                    data = json.loads(row["data"])
                     data["accumulated_symptoms"] = set(
                         data.get("accumulated_symptoms", [])
                     )
@@ -72,7 +102,7 @@ class ConversationMemory:
                         data["conversation_state"] = ConversationState(
                             data["conversation_state"]
                         )
-                    self.sessions[row[0]] = data
+                    self.sessions[row["session_id"]] = data
                 except Exception:
                     pass
 
@@ -86,8 +116,8 @@ class ConversationMemory:
             if hasattr(sess["conversation_state"], "value")
             else "initial"
         )
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
+        with self._db_cursor() as cursor:
+            cursor.execute(
                 "INSERT OR REPLACE INTO sessions (session_id, data) VALUES (?, ?)",
                 (session_id, json.dumps(sess)),
             )
@@ -95,8 +125,8 @@ class ConversationMemory:
     def clear_session(self, session_id: str):
         if session_id in self.sessions:
             del self.sessions[session_id]
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+        with self._db_cursor() as cursor:
+            cursor.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
 
     def add_interaction(
         self,

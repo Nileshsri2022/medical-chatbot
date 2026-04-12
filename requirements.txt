@@ -40,3 +40,8 @@ rank-bm25>=0.2
 # Logging and monitoring
 loguru>=0.7.0
 prometheus-client>=0.18.0
+
+# Performance profiling
+py-spy>=0.3.14
+line-profiler>=4.1.0
+memory-profiler>=0.60.0
