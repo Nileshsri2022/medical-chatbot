@@ -9,7 +9,7 @@ import logging
 from typing import Optional, Callable, Dict, List
 from functools import wraps
 from datetime import datetime, timedelta
-from fastapi import Request, HTTPException, Depends
+from fastapi import Request, HTTPException, Depends, Header
 from fastapi.security import APIKeyHeader
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -254,6 +254,100 @@ def medical_warning_decorator(func: Callable) -> Callable:
         if hasattr(response, "response"):
             response.response += f"\n\n⚠️ {SecurityConfig.MEDICAL_DISCLAIMER}"
 
-        return response
+        return wrapper
 
     return wrapper
+
+
+class JWTAuth:
+    """JWT Token-based authentication"""
+
+    def __init__(
+        self,
+        secret_key: str = "medical-rag-secret-key-change-in-production",
+        algorithm: str = "HS256",
+        token_expire_minutes: int = 60,
+    ):
+        self.secret_key = secret_key
+        self.algorithm = algorithm
+        self.token_expire_minutes = token_expire_minutes
+
+    def create_token(self, data: dict) -> str:
+        """Create JWT token"""
+        from datetime import datetime, timedelta
+
+        to_encode = data.copy()
+        expire = datetime.utcnow() + timedelta(minutes=self.token_expire_minutes)
+        to_encode.update({"exp": expire})
+
+        import jwt
+
+        return jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
+
+    def verify_token(self, token: str) -> dict:
+        """Verify and decode JWT token"""
+        import jwt
+
+        try:
+            payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
+            return payload
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token expired")
+        except jwt.InvalidTokenError:
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+    def get_token_from_header(
+        self, authorization: Optional[str] = None
+    ) -> Optional[str]:
+        """Extract token from Authorization header"""
+        if not authorization:
+            return None
+        if authorization.startswith("Bearer "):
+            return authorization[7:]
+        return authorization
+
+
+_jwt_auth = None
+
+
+def get_jwt_auth() -> JWTAuth:
+    global _jwt_auth
+    if _jwt_auth is None:
+        from ..config import config
+
+        secret = getattr(
+            config, "jwt_secret", "medical-rag-secret-key-change-in-production"
+        )
+        _jwt_auth = JWTAuth(secret_key=secret)
+    return _jwt_auth
+
+
+async def require_jwt_auth(authorization: Optional[str] = Header(None)) -> dict:
+    """Dependency for JWT authentication"""
+    jwt_auth = get_jwt_auth()
+    token = jwt_auth.get_token_from_header(authorization)
+
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail="Authorization token required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return jwt_auth.verify_token(token)
+
+
+async def optional_jwt_auth(
+    authorization: Optional[str] = Header(None),
+) -> Optional[dict]:
+    """Dependency for optional JWT authentication"""
+    jwt_auth = get_jwt_auth()
+    token = jwt_auth.get_token_from_header(authorization)
+
+    if not token:
+        return None
+
+    try:
+        return jwt_auth.verify_token(token)
+    except HTTPException:
+        return None

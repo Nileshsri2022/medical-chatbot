@@ -41,6 +41,9 @@ class ServerConfig:
     # Security
     api_key: Optional[str] = None
     require_auth: bool = False
+    jwt_secret: Optional[str] = "medical-rag-secret-key-change-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60
 
     @classmethod
     def from_env(cls) -> "ServerConfig":
@@ -64,6 +67,11 @@ class ServerConfig:
             default_temperature=float(os.getenv("DEFAULT_TEMPERATURE", "0.7")),
             api_key=os.getenv("API_KEY"),
             require_auth=os.getenv("REQUIRE_AUTH", "false").lower() == "true",
+            jwt_secret=os.getenv(
+                "JWT_SECRET", "medical-rag-secret-key-change-in-production"
+            ),
+            jwt_algorithm=os.getenv("JWT_ALGORITHM", "HS256"),
+            jwt_expire_minutes=int(os.getenv("JWT_EXPIRE_MINUTES", "60")),
         )
 
 

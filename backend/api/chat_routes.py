@@ -4,15 +4,23 @@ Modular API endpoints for the medical chatbot
 """
 
 from typing import Dict, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Request
+from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 import logging
+import uuid
 
 from .dependencies import get_http_client, get_client_id, check_rate_limit, require_auth
 from ..config import config
 from ..rag import MedicalRAGEnrichmentEngine
-from ..core.security import InputSanitizer, MedicalDisclaimer
+from ..core.security import (
+    InputSanitizer,
+    MedicalDisclaimer,
+    require_jwt_auth,
+    optional_jwt_auth,
+    get_jwt_auth,
+)
 from ..core.reliability import get_llm_health_checker, get_circuit_breaker
 from ..core.monitoring import get_metrics
 
@@ -24,14 +32,69 @@ _rag_engine = MedicalRAGEnrichmentEngine()
 
 
 class ChatRequestModel(BaseModel):
-    message: str = Field(..., description="User's message")
-    session_id: str = Field(..., description="Unique session identifier")
+    message: str = Field(
+        ..., description="User's message", min_length=1, max_length=5000
+    )
+    session_id: str = Field(
+        ..., description="Unique session identifier", min_length=1, max_length=100
+    )
     max_tokens: int = Field(
         config.default_max_tokens, description="Maximum tokens", ge=50, le=1000
     )
     temperature: float = Field(
         config.default_temperature, description="LLM temperature", ge=0.0, le=2.0
     )
+
+    @validator("message", "session_id")
+    def validate_not_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError("Cannot be empty")
+        return v.strip()
+
+
+class ChatResponseModel(BaseModel):
+    response: str
+    conversation_context: Dict
+    extracted_entities: Dict
+    symptoms_detected: List[Dict]
+    confidence_score: float
+    session_id: str
+    timestamp: str
+    processing_time: float
+    rag_metadata: Dict
+
+
+class HealthResponseModel(BaseModel):
+    status: str
+    timestamp: str
+    version: str
+    rag_engine_status: str
+    original_llm_status: str
+    llm_response_time: Optional[float]
+    circuit_breaker: Dict
+    active_sessions: int
+
+
+class ConversationHistoryResponseModel(BaseModel):
+    session_id: str
+    conversation_context: Dict
+    total_interactions: int
+    session_start_time: str
+
+
+class TokenRequestModel(BaseModel):
+    user_id: str = Field(
+        ..., description="User identifier", min_length=1, max_length=100
+    )
+    expires_minutes: Optional[int] = Field(
+        60, description="Token expiration in minutes", ge=1, le=1440
+    )
+
+
+class TokenResponseModel(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
 
 
 @router.get("/")
@@ -60,13 +123,24 @@ async def health_check(request: Request):
     }
 
 
-class ChatRequest:
-    """Chat request model"""
+@router.post("/auth/token")
+async def create_token(token_request: TokenRequestModel):
+    """Generate JWT access token"""
+    jwt_auth = get_jwt_auth()
 
-    message: str
-    session_id: str
-    max_tokens: int = config.default_max_tokens
-    temperature: float = config.default_temperature
+    token_data = {
+        "sub": token_request.user_id,
+        "user_id": token_request.user_id,
+        "iat": datetime.utcnow(),
+    }
+
+    access_token = jwt_auth.create_token(token_data)
+
+    return TokenResponseModel(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=token_request.expires_minutes * 60,
+    )
 
 
 @router.post("/chat")
