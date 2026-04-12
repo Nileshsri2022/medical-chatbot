@@ -159,14 +159,14 @@ start_rag_backend() {
         kill_port $RAG_PORT
     fi
     
-    # Start RAG server
-    cd "$BACKEND_DIR"
+    # Start RAG server using uvicorn module from project root
+    cd "$PROJECT_ROOT"
     print_status "Starting Medical RAG Server on port $RAG_PORT..."
-    
-    # Start in background
-    python3 medical_rag_server.py > rag_server.log 2>&1 &
+
+    # Start in background using uvicorn as module with full package path
+    python3 -m uvicorn backend.medical_rag_server:app --host 0.0.0.0 --port $RAG_PORT > "$BACKEND_DIR/rag_server.log" 2>&1 &
     RAG_PID=$!
-    echo $RAG_PID > rag_server.pid
+    echo $RAG_PID > "$BACKEND_DIR/rag_server.pid"
     
     # Wait for it to be ready
     if wait_for_service "http://localhost:$RAG_PORT/health" "RAG Backend"; then
