@@ -59,6 +59,19 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="context-section">
+                    <button class="history-toggle" id="historyToggle" onclick="toggleConversationHistory()">
+                        <span>📜 Conversation History</span>
+                        <span id="historyToggleIcon">▼</span>
+                    </button>
+                    <div class="history-meta">
+                        Turns: <span id="historyCount">0</span>
+                    </div>
+                    <div id="conversationHistoryList" class="conversation-history-list">
+                        <div class="history-empty">No previous exchanges yet.</div>
+                    </div>
+                </div>
                 
                 <div class="context-section">
                     <h4>⚡ System Status</h4>
@@ -108,6 +121,6 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=20260414-streaming"></script>
 </body>
 </html>

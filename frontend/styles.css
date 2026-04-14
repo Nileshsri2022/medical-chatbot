@@ -374,6 +374,104 @@
             margin-bottom: 10px;
             font-size: 11px;
         }
+
+        .history-toggle {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: none;
+            background: #f6f8fb;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #334;
+            cursor: pointer;
+            margin-bottom: 8px;
+            white-space: normal;
+            text-align: left;
+        }
+
+        .history-toggle span:first-child {
+            flex: 1;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .history-meta {
+            font-size: 11px;
+            color: #5f6368;
+            margin-bottom: 8px;
+        }
+
+        .conversation-history-list {
+            max-height: 220px;
+            overflow-y: auto;
+            border: 1px solid #e8ebef;
+            border-radius: 8px;
+            background: #fafbfc;
+            padding: 8px;
+        }
+
+        .conversation-history-list.collapsed {
+            display: none;
+        }
+
+        .history-empty {
+            font-size: 11px;
+            color: #7a7f87;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .history-entry {
+            background: white;
+            border: 1px solid #edf0f3;
+            border-radius: 6px;
+            padding: 8px;
+            margin-bottom: 8px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .history-entry:last-child {
+            margin-bottom: 0;
+        }
+
+        .history-entry-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #68707a;
+            margin-bottom: 6px;
+        }
+
+        .history-turn {
+            font-weight: 700;
+            color: #4a5560;
+        }
+
+        .history-user,
+        .history-assistant {
+            font-size: 11px;
+            line-height: 1.35;
+            margin-bottom: 4px;
+            color: #333;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .history-assistant {
+            margin-bottom: 0;
+            color: #444;
+        }
+
+        .history-label {
+            font-weight: 700;
+            color: #4d5a6a;
+        }
         
         .urgency-indicator {
             padding: 4px 8px;
@@ -402,6 +500,10 @@
                 width: 100%;
                 max-height: 200px;
                 order: -1;
+            }
+
+            .conversation-history-list {
+                max-height: 140px;
             }
             
             .input-controls {

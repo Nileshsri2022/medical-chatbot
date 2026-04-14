@@ -10,6 +10,11 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, validator
 import logging
 import uuid
+import time
+import json
+import asyncio
+
+import httpx
 
 from .dependencies import get_http_client, get_client_id, check_rate_limit, require_auth
 from ..config import config
@@ -29,6 +34,41 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["chat"])
 
 _rag_engine = MedicalRAGEnrichmentEngine()
+
+
+def _format_llm_diagnosis_response(llm_payload: Dict) -> str:
+    """Convert structured diagnosis JSON into user-friendly medical guidance text."""
+    symptoms = llm_payload.get("symptoms", []) if isinstance(llm_payload, dict) else []
+    illnesses = llm_payload.get("illnesses", []) if isinstance(llm_payload, dict) else []
+
+    lines: List[str] = [
+        "Thanks for sharing your symptoms. Based on your details, here is a preliminary analysis:",
+        "",
+    ]
+
+    if symptoms:
+        lines.append("Possible symptoms identified: " + ", ".join(symptoms[:8]))
+
+    if illnesses:
+        lines.append("")
+        lines.append("Possible conditions to discuss with a clinician:")
+        for idx, illness in enumerate(illnesses[:3], start=1):
+            if not isinstance(illness, dict):
+                continue
+            name = illness.get("name", "Unspecified condition")
+            illness_cov = illness.get("illness_coverage", 0)
+            condition_cov = illness.get("condition_coverage", 0)
+            lines.append(
+                f"{idx}. {name} (match quality: illness {illness_cov}%, symptom fit {condition_cov}%)"
+            )
+    else:
+        lines.append("No high-confidence condition match was returned by the model.")
+
+    lines.append("")
+    lines.append(
+        "If symptoms are severe, sudden, worsening, or include chest pain, breathing trouble, severe headache, confusion, or fainting, seek emergency care immediately."
+    )
+    return "\n".join(lines)
 
 
 class ChatRequestModel(BaseModel):
@@ -155,6 +195,12 @@ async def chat(
     if not check_rate_limit(client_id):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
+    logger.info(
+        f"[CHAT] Non-stream endpoint hit: /api/v1/chat session={chat_request.session_id} client={client_id}"
+    )
+
+    started = time.perf_counter()
+
     try:
         validated_message = InputSanitizer.validate_message(chat_request.message)
 
@@ -162,7 +208,50 @@ async def chat(
             validated_message, chat_request.session_id
         )
 
-        response = result.get("enriched_prompt", "")
+        llm_payload = {
+            "description": result.get("enriched_prompt", validated_message),
+            "max_tokens": chat_request.max_tokens,
+            "temperature": chat_request.temperature,
+        }
+
+        circuit_breaker = get_circuit_breaker()
+        if not circuit_breaker.can_execute():
+            raise HTTPException(status_code=503, detail="LLM service temporarily unavailable")
+
+        llm_json: Dict = {}
+        try:
+            llm_response = await get_http_client().post(
+                f"{config.original_llm_url}/diagnose",
+                json=llm_payload,
+                headers={"Content-Type": "application/json"},
+            )
+            llm_response.raise_for_status()
+            llm_json = llm_response.json()
+            circuit_breaker.record_success()
+        except httpx.HTTPStatusError as exc:
+            circuit_breaker.record_failure()
+            logger.error(f"LLM backend returned HTTP {exc.response.status_code}: {exc}")
+            raise HTTPException(status_code=502, detail="LLM backend returned an error")
+        except httpx.HTTPError as exc:
+            circuit_breaker.record_failure()
+            logger.error(f"LLM backend request failed: {exc}")
+            raise HTTPException(status_code=502, detail="Failed to reach LLM backend")
+
+        response = _format_llm_diagnosis_response(llm_json)
+
+        _rag_engine.add_interaction(
+            session_id=chat_request.session_id,
+            user_input=validated_message,
+            extracted_info={
+                "entities": result.get("entities", {}),
+                "symptoms": result.get("symptoms", []),
+                "llm_diagnosis": llm_json,
+            },
+            ai_response=response,
+            confidence_score=result.get("confidence_score", 0.0),
+        )
+
+        processing_time = round(time.perf_counter() - started, 3)
 
         response = MedicalDisclaimer.add_disclaimer(
             response,
@@ -182,7 +271,7 @@ async def chat(
             "confidence_score": result.get("confidence_score", 0.0),
             "session_id": chat_request.session_id,
             "timestamp": "",
-            "processing_time": 0.0,
+            "processing_time": processing_time,
             "rag_metadata": {
                 "from_cache": result.get("from_cache", False),
                 "urgency": result.get("context", {}).get("medical_urgency", "low"),
@@ -191,6 +280,110 @@ async def chat(
     except Exception as e:
         logger.error(f"Chat error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/chat/stream")
+async def chat_stream(
+    chat_request: ChatRequestModel,
+    request: Request = None,
+    _auth: bool = Depends(require_auth),
+):
+    """Enhanced chat with RAG and streaming response"""
+    client_id = request.client.host if request and request.client else "unknown"
+
+    if not check_rate_limit(client_id):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+
+    logger.info(
+        f"[CHAT] Stream endpoint hit: /api/v1/chat/stream session={chat_request.session_id} client={client_id}"
+    )
+
+    started = time.perf_counter()
+
+    async def generate():
+        try:
+            validated_message = InputSanitizer.validate_message(chat_request.message)
+            result = _rag_engine.process_user_input(
+                validated_message, chat_request.session_id
+            )
+
+            llm_payload = {
+                "description": result.get("enriched_prompt", validated_message),
+                "max_tokens": chat_request.max_tokens,
+                "temperature": chat_request.temperature,
+            }
+
+            circuit_breaker = get_circuit_breaker()
+            if not circuit_breaker.can_execute():
+                yield f'data: {json.dumps({"error": "LLM service temporarily unavailable"})}\n\n'
+                return
+
+            try:
+                diagnosis_response = await get_http_client().post(
+                    f"{config.original_llm_url}/diagnose",
+                    json=llm_payload,
+                    headers={"Content-Type": "application/json"},
+                )
+                diagnosis_response.raise_for_status()
+                llm_json = diagnosis_response.json()
+                circuit_breaker.record_success()
+            except Exception as exc:
+                circuit_breaker.record_failure()
+                logger.error(f"LLM call failed: {exc}")
+                yield f'data: {json.dumps({"error": "LLM backend error"})}\n\n'
+                return
+
+            formatted_response = _format_llm_diagnosis_response(llm_json)
+            
+            processing_time = round(time.perf_counter() - started, 3)
+            
+            final_response = MedicalDisclaimer.add_disclaimer(
+                formatted_response,
+                symptoms=result.get("symptoms", []),
+                entities=result.get("entities", {}),
+            )
+
+            _rag_engine.add_interaction(
+                session_id=chat_request.session_id,
+                user_input=validated_message,
+                extracted_info={
+                    "entities": result.get("entities", {}),
+                    "symptoms": result.get("symptoms", []),
+                    "llm_diagnosis": llm_json,
+                },
+                ai_response=final_response,
+                confidence_score=result.get("confidence_score", 0.0),
+            )
+
+            get_metrics().record_chat(
+                success=True, symptoms_count=len(result.get("symptoms", []))
+            )
+            
+            logger.info(f"🚀 [STREAMING] Starting streaming response for session {chat_request.session_id}")
+            logger.info(f"📊 [STREAMING] Response length: {len(final_response)} characters, {len(final_response.split())} words")
+            
+            yield f'data: {json.dumps({"text": "🧠 Analyzing your symptoms...\n\n", "type": "start"})}\n\n'
+            logger.debug("▶️ [STREAMING] Sent start signal")
+            
+            words = final_response.split()
+            for i, word in enumerate(words):
+                yield f'data: {json.dumps({"text": word + (" " if i < len(words) - 1 else ""), "type": "chunk"})}\n\n'
+                if (i + 1) % 20 == 0:
+                    logger.debug(f"📊 [STREAMING] Streamed {i + 1}/{len(words)} words")
+                await asyncio.sleep(0.01)
+
+            logger.info(f"✅ [STREAMING] All chunks sent ({len(words)} words)")
+            yield f'data: {json.dumps({"type": "complete", "data": {"response": final_response, "conversation_context": result.get("conversation_context", {}), "extracted_entities": result.get("entities", {}), "symptoms_detected": result.get("symptoms", []), "confidence_score": result.get("confidence_score", 0.0), "session_id": chat_request.session_id, "processing_time": processing_time, "rag_metadata": {"from_cache": result.get("from_cache", False), "urgency": result.get("context", {}).get("medical_urgency", "low")}}})}\n\n'
+            logger.debug("🏁 [STREAMING] Sent complete signal")
+            yield "data: [DONE]\n\n"
+            logger.info(f"🏁 [STREAMING] Stream completed. Total chunks: {len(words)}")
+            logger.info(f"✅ [STREAMING] Streaming finished for session {chat_request.session_id} (took {processing_time}s)")
+
+        except Exception as e:
+            logger.error(f"❌ [STREAMING] Stream error: {str(e)}", exc_info=True)
+            yield f'data: {json.dumps({"error": str(e)})}\n\n'
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @router.get("/conversation-history/{session_id}")

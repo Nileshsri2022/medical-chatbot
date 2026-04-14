@@ -6,6 +6,7 @@
         let sessionId = null;
         let conversationContext = {};
         let interactionCount = 0;
+        let historyCollapsed = false;
         
         const RAG_ENDPOINT = 'http://localhost:8002';
         const DIRECT_LLM_ENDPOINT = 'http://localhost:8001';
@@ -42,6 +43,9 @@
                 const response = await fetch(`${RAG_ENDPOINT}/api/v1/conversation-history/${sessionId}`);
                 if (response.ok) {
                     const data = await response.json();
+                    const history = data.conversation_context?.conversation_history || [];
+                    renderConversationHistory(history);
+
                     if (data.conversation_context && data.conversation_context.conversation_history) {
                         for (const turn of data.conversation_context.conversation_history) {
                             addMessage(turn.user_input, true);
@@ -65,6 +69,78 @@
                 }
             } catch (e) {
                 console.error("No history loaded", e);
+                renderConversationHistory([]);
+            }
+        }
+
+        function toggleConversationHistory() {
+            historyCollapsed = !historyCollapsed;
+            const historyList = document.getElementById('conversationHistoryList');
+            const icon = document.getElementById('historyToggleIcon');
+
+            if (!historyList || !icon) return;
+
+            historyList.classList.toggle('collapsed', historyCollapsed);
+            icon.textContent = historyCollapsed ? '▶' : '▼';
+        }
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function toSnippet(value, maxLen = 250) {
+            const cleaned = String(value || '').replace(/\s+/g, ' ').trim();
+            if (cleaned.length <= maxLen) return cleaned;
+            return `${cleaned.slice(0, maxLen)}...`;
+        }
+
+        function renderConversationHistory(historyTurns = []) {
+            const list = document.getElementById('conversationHistoryList');
+            const count = document.getElementById('historyCount');
+            if (!list || !count) return;
+
+            count.textContent = historyTurns.length;
+
+            if (!historyTurns.length) {
+                list.innerHTML = '<div class="history-empty">No previous exchanges yet.</div>';
+                return;
+            }
+
+            const sorted = [...historyTurns].reverse();
+            list.innerHTML = sorted.map((turn, index) => {
+                const turnNumber = historyTurns.length - index;
+                const userText = escapeHtml(toSnippet(turn.user_input || ''));
+                const aiText = escapeHtml(toSnippet(turn.ai_response || ''));
+                const confidence = Number(turn.confidence_score || 0);
+
+                return `
+                    <div class="history-entry">
+                        <div class="history-entry-header">
+                            <span class="history-turn">Turn ${turnNumber}</span>
+                            <span>${(confidence * 100).toFixed(0)}% confidence</span>
+                        </div>
+                        <div class="history-user"><span class="history-label">You:</span> ${userText || 'N/A'}</div>
+                        <div class="history-assistant"><span class="history-label">AI:</span> ${aiText || 'N/A'}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function refreshConversationHistoryPanel() {
+            if (!sessionId) return;
+            try {
+                const response = await fetch(`${RAG_ENDPOINT}/api/v1/conversation-history/${sessionId}`);
+                if (!response.ok) return;
+                const data = await response.json();
+                const history = data.conversation_context?.conversation_history || [];
+                renderConversationHistory(history);
+            } catch (e) {
+                console.error('Failed to refresh history panel:', e);
             }
         }
 
@@ -249,36 +325,143 @@ Please use the appropriate mode based on available connections.`);
                 let response;
                 
                 if (mode === 'enhanced') {
-                    // Use RAG enhancement
-                    response = await fetch(`${RAG_ENDPOINT}/api/v1/chat`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            message: message,
-                            session_id: sessionId,
-                            max_tokens: maxTokens,
-                            temperature: temperature
-                        })
-                    });
-                    
-                    if (!response.ok) {
-                        throw new Error('Failed to get response');
+                    // Try streaming first, fallback to non-streaming
+                    try {
+                        console.log('🚀 [STREAMING] Initiating streaming request to /api/v1/chat/stream');
+                        response = await fetch(`${RAG_ENDPOINT}/api/v1/chat/stream`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                message: message,
+                                session_id: sessionId,
+                                max_tokens: maxTokens,
+                                temperature: temperature
+                            })
+                        });
+                        
+                        if (!response.ok) {
+                            let streamErrorBody = '';
+                            try {
+                                streamErrorBody = await response.text();
+                            } catch (readErr) {
+                                console.error('❌ [STREAMING] Failed to read error body:', readErr);
+                            }
+                            console.warn('⚠️ [STREAMING] Stream endpoint error body:', streamErrorBody);
+                            console.warn('⚠️ [STREAMING] Streaming endpoint returned:', response.status);
+                            throw new Error(`Streaming not available (HTTP ${response.status}) ${streamErrorBody}`);
+                        }
+
+                        console.log('✅ [STREAMING] Connection established with status:', response.status);
+                        const reader = response.body.getReader();
+                        const decoder = new TextDecoder();
+                        let responseData = null;
+                        let fullText = '';
+                        let chunkCount = 0;
+
+                        removeLoadingMessage();
+                        const streamMessageDiv = createStreamingMessageElement();
+                        const messagesContainer = document.getElementById('chatMessages');
+                        messagesContainer.appendChild(streamMessageDiv);
+                        const contentElement = streamMessageDiv.querySelector('.streaming-content');
+                        console.log('📝 [STREAMING] Streaming message element created and added to DOM');
+
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) {
+                                console.log('🏁 [STREAMING] Stream completed. Total chunks received:', chunkCount);
+                                break;
+                            }
+
+                            const chunk = decoder.decode(value, { stream: true });
+                            const lines = chunk.split('\n');
+
+                            for (const line of lines) {
+                                if (line.startsWith('data: ')) {
+                                    try {
+                                        const jsonData = JSON.parse(line.slice(6));
+                                        if (jsonData.error) {
+                                            console.error('❌ [STREAMING] Stream error:', jsonData.error);
+                                            contentElement.innerHTML += `<p style="color: #dc3545;">❌ ${jsonData.error}</p>`;
+                                        } else if (jsonData.type === 'start') {
+                                            console.log('▶️ [STREAMING] Stream started');
+                                            contentElement.innerHTML = `<p>${jsonData.text}</p>`;
+                                        } else if (jsonData.type === 'chunk') {
+                                            chunkCount++;
+                                            fullText += jsonData.text;
+                                            contentElement.lastChild.textContent = fullText;
+                                            if (chunkCount % 10 === 0) {
+                                                console.log(`📊 [STREAMING] Received ${chunkCount} chunks, text length: ${fullText.length}`);
+                                            }
+                                        } else if (jsonData.type === 'complete') {
+                                            console.log('✅ [STREAMING] Received complete response with data:', jsonData.data);
+                                            responseData = jsonData.data;
+                                        }
+                                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                                    } catch (e) {
+                                        console.error('❌ [STREAMING] JSON parse error:', e, 'Line:', line);
+                                    }
+                                }
+                            }
+                        }
+
+                        if (responseData) {
+                            const endTime = Date.now();
+                            const responseTime = (endTime - startTime) / 1000;
+                            
+                            streamMessageDiv.innerHTML = `
+                                <div class="message-content">
+                                    <div class="context-indicators">
+                                        <span class="context-tag symptoms">🔍 Symptoms: ${responseData.symptoms_detected ? responseData.symptoms_detected.length : 0}</span>
+                                        <span class="context-tag confidence">📊 Confidence: ${(responseData.confidence_score * 100).toFixed(0)}%</span>
+                                        <span class="context-tag urgency">⚡ ${(responseData.conversation_context?.urgency_level || 'low').toUpperCase()}</span>
+                                    </div>
+                                    <p>${fullText || responseData.response}</p>
+                                </div>
+                                <div class="timestamp">
+                                    ${new Date().toLocaleTimeString()} 
+                                    <span class="processing-time">(${responseTime.toFixed(2)}s)</span>
+                                    <span class="enhanced-indicator">🧠 RAG Streaming</span>
+                                </div>
+                            `;
+                            
+                            updateContextPanel(responseData);
+                            conversationContext = responseData.conversation_context;
+                            interactionCount++;
+                            updateSessionStats();
+                            await refreshConversationHistoryPanel();
+                        }
+                    } catch (streamError) {
+                        // Fallback to non-streaming
+                        console.log('Streaming unavailable, using standard mode:', streamError);
+                        addSystemMessage(`⚠️ Streaming unavailable, fallback to standard response. Reason: ${streamError.message}`);
+                        response = await fetch(`${RAG_ENDPOINT}/api/v1/chat`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                message: message,
+                                session_id: sessionId,
+                                max_tokens: maxTokens,
+                                temperature: temperature
+                            })
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error('Failed to get response');
+                        }
+                        
+                        removeLoadingMessage();
+                        const data = await response.json();
+                        const endTime = Date.now();
+                        const responseTime = (endTime - startTime) / 1000;
+                        
+                        addEnhancedMessage(data, responseTime);
+                        updateContextPanel(data);
+                        conversationContext = data.conversation_context;
+                        
+                        interactionCount++;
+                        updateSessionStats();
+                        await refreshConversationHistoryPanel();
                     }
-                    
-                    // Get JSON response (non-streaming)
-                    const data = await response.json();
-                    
-                    removeLoadingMessage();
-                    const endTime = Date.now();
-                    const responseTime = (endTime - startTime) / 1000;
-                    
-                    // Add the response message
-                    addEnhancedMessage(data, responseTime);
-                    updateContextPanel(data);
-                    conversationContext = data.conversation_context;
-                    
-                    interactionCount++;
-                    updateSessionStats();
                     
                 } else {
                     // Direct LLM call
@@ -393,6 +576,23 @@ Please use the appropriate mode based on available connections.`);
             
             messagesContainer.appendChild(messageDiv);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function createStreamingMessageElement() {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot-message streaming-message';
+            messageDiv.innerHTML = `
+                <div class="message-content">
+                    <div class="streaming-content">
+                        <p>🧠 Analyzing your symptoms...</p>
+                    </div>
+                </div>
+                <div class="timestamp">
+                    ${new Date().toLocaleTimeString()} 
+                    <span class="enhanced-indicator">🧠 RAG Streaming</span>
+                </div>
+            `;
+            return messageDiv;
         }
 
         function addMessage(content, isUser = false, processingTime = null) {
@@ -524,6 +724,7 @@ Please use the appropriate mode based on available connections.`);
                     // Reset context panel
                     document.getElementById('currentSymptoms').innerHTML = '<div class="context-item"><span>No symptoms detected</span></div>';
                     document.getElementById('accumulatedContext').innerHTML = '<div class="context-item"><span>Building conversation context...</span></div>';
+                    renderConversationHistory([]);
                     
                 } catch (error) {
                     addSystemMessage(`❌ Error resetting conversation: ${error.message}`);

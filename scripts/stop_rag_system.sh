@@ -3,7 +3,7 @@
 # Medical RAG Chatbot - System Shutdown Script
 # Healthcare
 
-echo "🛑 Stopping Medical RAG Chatbot System"
+echo "ðŸ›‘ Stopping Medical RAG Chatbot System"
 echo "==============================================="
 
 # Configuration
@@ -84,8 +84,13 @@ if [ -f "$SCRIPT_DIR/system_pids.txt" ]; then
     print_status "Found system PIDs file"
     
     # Stop services using PIDs
+    kill_process "$LLM_PID" "LLM Backend Server"
     kill_process "$RAG_PID" "RAG Backend Server"
     kill_process "$FRONTEND_PID" "Frontend Server"
+
+    if [ ! -z "$LLM_PORT" ]; then
+        kill_by_port "$LLM_PORT" "LLM Backend"
+    fi
     
     # Also kill by ports as backup
     if [ ! -z "$RAG_PORT" ]; then
@@ -103,7 +108,8 @@ else
     print_warning "No PID file found, killing by default ports..."
     
     # Kill by default ports
-    kill_by_port "8001" "RAG Backend"
+    kill_by_port "8001" "LLM Backend"
+    kill_by_port "8002" "RAG Backend"
     kill_by_port "3000" "Frontend Server"
 fi
 
@@ -111,13 +117,19 @@ fi
 print_status "Cleaning up PID files..."
 
 if [ -f "$BACKEND_DIR/rag_server.pid" ]; then
-    local rag_pid=$(cat "$BACKEND_DIR/rag_server.pid")
+    rag_pid=$(cat "$BACKEND_DIR/rag_server.pid")
     kill_process "$rag_pid" "RAG Server (from PID file)"
     rm -f "$BACKEND_DIR/rag_server.pid"
 fi
 
+if [ -f "$BACKEND_DIR/llm_server.pid" ]; then
+    llm_pid=$(cat "$BACKEND_DIR/llm_server.pid")
+    kill_process "$llm_pid" "LLM Server (from PID file)"
+    rm -f "$BACKEND_DIR/llm_server.pid"
+fi
+
 if [ -f "$FRONTEND_DIR/frontend_server.pid" ]; then
-    local frontend_pid=$(cat "$FRONTEND_DIR/frontend_server.pid")
+    frontend_pid=$(cat "$FRONTEND_DIR/frontend_server.pid")
     kill_process "$frontend_pid" "Frontend Server (from PID file)"
     rm -f "$FRONTEND_DIR/frontend_server.pid"
 fi
@@ -125,6 +137,7 @@ fi
 # Clean up temporary files
 print_status "Cleaning up temporary files..."
 rm -f "$FRONTEND_DIR/serve_frontend.py"
+rm -f "$BACKEND_DIR/llm_server.log"
 rm -f "$BACKEND_DIR/rag_server.log"
 rm -f "$FRONTEND_DIR/frontend_server.log"
 
@@ -133,7 +146,7 @@ echo ""
 print_status "Verifying shutdown..."
 
 # Check ports
-ports_to_check=("8001" "3000")
+ports_to_check=("8001" "8002" "3000")
 all_clear=true
 
 for port in "${ports_to_check[@]}"; do
@@ -147,13 +160,13 @@ done
 
 if $all_clear; then
     echo ""
-    echo "✅ Enhanced Medical RAG Chatbot System stopped successfully!"
+    echo "âœ… Enhanced Medical RAG Chatbot System stopped successfully!"
     echo ""
-    echo "🧹 Cleanup completed:"
-    echo "   ✓ All processes terminated"
-    echo "   ✓ Ports released"
-    echo "   ✓ Temporary files removed"
-    echo "   ✓ PID files cleaned"
+    echo "ðŸ§¹ Cleanup completed:"
+    echo "   âœ“ All processes terminated"
+    echo "   âœ“ Ports released"
+    echo "   âœ“ Temporary files removed"
+    echo "   âœ“ PID files cleaned"
     echo ""
     echo "To start the system again, run: ./scripts/start_rag_system.sh"
 else
