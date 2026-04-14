@@ -54,3 +54,9 @@ __pycache__/
 node_modules/
 package-lock.json
 skills-lock.json
+.agents/
+.pytest_cache/
+.ruff_cache/
+
+monitor_logs.sh
+tests/

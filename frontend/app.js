@@ -23,14 +23,29 @@
                 this.style.height = 'auto';
                 this.style.height = this.scrollHeight + 'px';
             });
+            
+            // Attach history toggle click handler
+            const historyToggleBtn = document.getElementById('historyToggle');
+            if (historyToggleBtn) {
+                console.log('📜 [HISTORY] Attaching click listener to history toggle button');
+                historyToggleBtn.addEventListener('click', toggleConversationHistory);
+            } else {
+                console.warn('📜 [HISTORY] historyToggle button not found in DOM');
+            }
         });
 
         function initializeSession() {
-            sessionId = localStorage.getItem('medical_rag_session_id');
-            if (!sessionId) {
+            const storedSessionId = localStorage.getItem('medical_rag_session_id');
+            
+            if (storedSessionId) {
+                sessionId = storedSessionId;
+                console.log('💾 [SESSION] Restored persisted session from localStorage:', sessionId.substring(0, 16) + '...');
+            } else {
                 sessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
                 localStorage.setItem('medical_rag_session_id', sessionId);
+                console.log('💾 [SESSION] Created new session and saved to localStorage:', sessionId.substring(0, 16) + '...');
             }
+            
             document.getElementById('sessionId').textContent = sessionId.substring(0, 16) + '...';
             updateSessionStats();
             
@@ -39,11 +54,13 @@
         }
 
         async function loadConversationHistory() {
+            console.log('💾 [SESSION] Loading conversation history for session:', sessionId.substring(0, 16) + '...');
             try {
                 const response = await fetch(`${RAG_ENDPOINT}/api/v1/conversation-history/${sessionId}`);
                 if (response.ok) {
                     const data = await response.json();
                     const history = data.conversation_context?.conversation_history || [];
+                    console.log('💾 [SESSION] Loaded', history.length, 'conversation turns from backend');
                     renderConversationHistory(history);
 
                     if (data.conversation_context && data.conversation_context.conversation_history) {
@@ -74,14 +91,21 @@
         }
 
         function toggleConversationHistory() {
+            console.log('📜 [HISTORY] Toggle clicked. Current state:', historyCollapsed);
             historyCollapsed = !historyCollapsed;
+            console.log('📜 [HISTORY] New collapsed state:', historyCollapsed);
+            
             const historyList = document.getElementById('conversationHistoryList');
             const icon = document.getElementById('historyToggleIcon');
 
-            if (!historyList || !icon) return;
+            if (!historyList || !icon) {
+                console.warn('📜 [HISTORY] Elements not found!');
+                return;
+            }
 
             historyList.classList.toggle('collapsed', historyCollapsed);
             icon.textContent = historyCollapsed ? '▶' : '▼';
+            console.log('📜 [HISTORY] Toggled. Icon:', icon.textContent, 'Display:', window.getComputedStyle(historyList).display);
         }
 
         function escapeHtml(value) {
@@ -93,7 +117,229 @@
                 .replace(/'/g, '&#39;');
         }
 
-        function toSnippet(value, maxLen = 250) {
+        function formatAssistantResponse(rawText) {
+            const normalized = String(rawText || '')
+                .replace(/\r/g, '')
+                .replace(/(Possible symptoms identified:?)/gi, '\n$1')
+                .replace(/(Possible conditions to discuss with a clinician:?)/gi, '\n$1')
+                .replace(/(If symptoms are severe[^\n]*)/gi, '\n$1')
+                .replace(/(🚨[^\n]*)/g, '\n$1')
+                .replace(/(⚠️[^\n]*)/g, '\n$1')
+                .replace(/(\d+)%\s*Symptom\s*fit/gi, '$1% | Symptom fit')
+                .trim();
+            if (!normalized) return '<div class="assistant-rich"><p>No response generated.</p></div>';
+
+            const lines = normalized.split('\n').map((line) => line.trim());
+            const parts = [];
+            let listType = null;
+
+            const closeList = () => {
+                if (listType) {
+                    parts.push(`</${listType}>`);
+                    listType = null;
+                }
+            };
+
+            const inlineFormat = (text) => {
+                return escapeHtml(text)
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/`(.*?)`/g, '<code>$1</code>');
+            };
+
+            const parseMetrics = (text) => {
+                const illnessMatch = text.match(/illness\s*(\d+)%/i);
+                const symptomMatch = text.match(/symptom\s*fit\s*(\d+)%/i);
+                return {
+                    illnessPct: illnessMatch ? illnessMatch[1] : null,
+                    symptomPct: symptomMatch ? symptomMatch[1] : null,
+                };
+            };
+
+            const renderConditionCard = (rank, conditionText, fallbackMetricsLine = '') => {
+                const fromText = parseMetrics(conditionText);
+                const fromFallback = parseMetrics(fallbackMetricsLine);
+                const illnessPct = fromText.illnessPct || fromFallback.illnessPct;
+                const symptomPct = fromText.symptomPct || fromFallback.symptomPct;
+
+                const cleanName = conditionText
+                    .replace(/\(.*?\)/g, '')
+                    .replace(/match\s*quality\s*:/gi, '')
+                    .replace(/illness\s*\d+%/gi, '')
+                    .replace(/symptom\s*fit\s*\d+%/gi, '')
+                    .replace(/[|,]+/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim() || conditionText;
+
+                let metrics = '';
+                if (illnessPct || symptomPct) {
+                    metrics = '<div class="condition-metrics">';
+                    if (illnessPct) metrics += `<span class="condition-metric">Illness ${illnessPct}%</span>`;
+                    if (symptomPct) metrics += `<span class="condition-metric">Symptom fit ${symptomPct}%</span>`;
+                    metrics += '</div>';
+                }
+
+                return `
+                    <div class="condition-item">
+                        <span class="condition-rank">${rank}</span>
+                        <div class="condition-body">
+                            <div class="condition-text">${inlineFormat(cleanName)}</div>
+                            ${metrics}
+                        </div>
+                    </div>
+                `;
+            };
+
+            const extractInlineConditions = (text) => {
+                const segments = [];
+                const regex = /(\d+)[.)]\s*([\s\S]*?)(?=(?:\s+\d+[.)]\s*)|$)/g;
+                let match;
+                while ((match = regex.exec(text)) !== null) {
+                    const rank = match[1];
+                    const payload = (match[2] || '').trim();
+                    if (payload) {
+                        segments.push({ rank, payload });
+                    }
+                }
+                return segments;
+            };
+
+            for (let i = 0; i < lines.length; i += 1) {
+                const trimmed = lines[i];
+
+                if (!trimmed) {
+                    closeList();
+                    continue;
+                }
+
+                // Handle split condition pattern: "1" then condition name then optional metrics line
+                if (/^\d+$/.test(trimmed)) {
+                    closeList();
+                    const rank = trimmed;
+                    const next = lines[i + 1] || '';
+                    const next2 = lines[i + 2] || '';
+
+                    if (next) {
+                        const metricsLikely = /(illness\s*\d+%|symptom\s*fit\s*\d+%)/i.test(next2) ? next2 : '';
+                        parts.push(renderConditionCard(rank, next, metricsLikely));
+                        i += metricsLikely ? 2 : 1;
+                        continue;
+                    }
+                }
+
+                const ordered = trimmed.match(/^(\d+)[.)]\s*(.+)/);
+                if (ordered) {
+                    closeList();
+                    const inlineConditions = extractInlineConditions(trimmed);
+                    if (inlineConditions.length > 1) {
+                        inlineConditions.forEach((entry) => {
+                            parts.push(renderConditionCard(entry.rank, entry.payload));
+                        });
+                    } else {
+                        const rank = ordered[1];
+                        const conditionText = ordered[2];
+                        parts.push(renderConditionCard(rank, conditionText));
+                    }
+                    continue;
+                }
+
+                const bullet = trimmed.match(/^[-*•]\s+(.+)/);
+                if (bullet) {
+                    if (listType !== 'ul') {
+                        closeList();
+                        parts.push('<ul class="assistant-bullet-list">');
+                        listType = 'ul';
+                    }
+                    parts.push(`<li>${inlineFormat(bullet[1])}</li>`);
+                    continue;
+                }
+
+                closeList();
+
+                const labelLine = trimmed.match(/^(Possible symptoms identified|Possible conditions to discuss with a clinician|Important|Summary|Analysis):\s*(.*)$/i);
+                if (labelLine) {
+                    const label = inlineFormat(labelLine[1]);
+                    const value = (labelLine[2] || '').trim();
+
+                    if (/possible symptoms identified/i.test(labelLine[1])) {
+                        const symptomParts = value
+                            .split(',')
+                            .map((item) => item.trim())
+                            .filter(Boolean)
+                            .slice(0, 12)
+                            .map((item) => `<li class="symptom-chip">${inlineFormat(item)}</li>`)
+                            .join('');
+
+                        if (symptomParts) {
+                            parts.push(`<div class="assistant-section"><h5>${label}</h5><ul class="symptom-chip-list">${symptomParts}</ul></div>`);
+                        } else {
+                            parts.push(`<div class="assistant-section"><h5>${label}</h5></div>`);
+                        }
+                    } else {
+                        if (/possible conditions to discuss with a clinician/i.test(labelLine[1]) && value) {
+                            parts.push(`<div class="assistant-section"><h5>${label}</h5></div>`);
+                            const inlineConditions = extractInlineConditions(value);
+                            if (inlineConditions.length > 0) {
+                                inlineConditions.forEach((entry) => {
+                                    parts.push(renderConditionCard(entry.rank, entry.payload));
+                                });
+                            } else {
+                                parts.push(`<p>${inlineFormat(value)}</p>`);
+                            }
+                        } else if (value) {
+                            parts.push(`<div class="assistant-section"><h5>${label}</h5><p>${inlineFormat(value)}</p></div>`);
+                        } else {
+                            parts.push(`<div class="assistant-section"><h5>${label}</h5></div>`);
+                        }
+                    }
+                    continue;
+                }
+
+                if (/^(Possible symptoms identified|Possible conditions to discuss with a clinician|Important|Summary|Analysis)$/i.test(trimmed)) {
+                    parts.push(`<h5>${inlineFormat(trimmed)}</h5>`);
+                    continue;
+                }
+
+                if (/^[🚨⚠]/.test(trimmed)) {
+                    parts.push(`<div class="assistant-alert">${inlineFormat(trimmed)}</div>`);
+                    continue;
+                }
+
+                if (/^if symptoms are severe/i.test(trimmed)) {
+                    parts.push(`<div class="assistant-alert assistant-alert-soft">${inlineFormat(trimmed)}</div>`);
+                    continue;
+                }
+
+                if (/^(analysis|summary|important|possible conditions to consider|symptoms identified|recommended next steps|when to seek emergency care)[:]?$/i.test(trimmed)) {
+                    parts.push(`<h5>${inlineFormat(trimmed.replace(/:$/, ''))}</h5>`);
+                    continue;
+                }
+
+                parts.push(`<p>${inlineFormat(trimmed)}</p>`);
+            }
+
+            closeList();
+            return `<div class="assistant-rich">${parts.join('')}</div>`;
+        }
+
+        function resolveDisplaySymptoms(data) {
+            const direct = data?.symptoms_detected || data?.symptoms || [];
+            if (Array.isArray(direct) && direct.length > 0) {
+                return direct;
+            }
+
+            const accumulated = data?.conversation_context?.accumulated_symptoms || [];
+            if (Array.isArray(accumulated) && accumulated.length > 0) {
+                return accumulated.map((name) => ({
+                    symptom: name,
+                    confidence: data?.confidence_score || 0,
+                    urgency: data?.conversation_context?.urgency_level || 'unknown',
+                }));
+            }
+
+            return [];
+        }
+
+        function toSnippet(value, maxLen = 500) {
             const cleaned = String(value || '').replace(/\s+/g, ' ').trim();
             if (cleaned.length <= maxLen) return cleaned;
             return `${cleaned.slice(0, maxLen)}...`;
@@ -193,18 +439,6 @@
                 isConnected = ragConnected && llmConnected;
                 if (isConnected) {
                     statusElement.className = 'connection-status connected';
-                    
-                    addSystemMessage(`✅ Medical Assistant Ready!
-                    
-🧠 <strong>System Status:</strong>
-• RAG Enhancement Engine: Active
-• Medical Entity Recognition: Online  
-• Conversation Memory: Initialized
-• Symptom Analysis: Ready
-• Context Building: Operational
-
-🚀 Start describing your symptoms for intelligent medical guidance.`);
-                    
                 } else if (ragConnected || llmConnected) {
                     statusElement.className = 'connection-status partial';
                     addSystemMessage(`⚠️ Partial Connection Available
@@ -411,11 +645,11 @@ Please use the appropriate mode based on available connections.`);
                             streamMessageDiv.innerHTML = `
                                 <div class="message-content">
                                     <div class="context-indicators">
-                                        <span class="context-tag symptoms">🔍 Symptoms: ${responseData.symptoms_detected ? responseData.symptoms_detected.length : 0}</span>
+                                        <span class="context-tag symptoms">🔍 Symptoms: ${resolveDisplaySymptoms(responseData).length}</span>
                                         <span class="context-tag confidence">📊 Confidence: ${(responseData.confidence_score * 100).toFixed(0)}%</span>
                                         <span class="context-tag urgency">⚡ ${(responseData.conversation_context?.urgency_level || 'low').toUpperCase()}</span>
                                     </div>
-                                    <p>${fullText || responseData.response}</p>
+                                    ${formatAssistantResponse(fullText || responseData.response)}
                                 </div>
                                 <div class="timestamp">
                                     ${new Date().toLocaleTimeString()} 
@@ -529,7 +763,7 @@ Please use the appropriate mode based on available connections.`);
             
             // Create context indicators
             let contextInfo = '';
-            const symptoms = data.symptoms_detected || data.symptoms || [];
+            const symptoms = resolveDisplaySymptoms(data);
             const entities = data.extracted_entities || {};
             const confidence = data.confidence_score || 0;
             
@@ -565,7 +799,7 @@ Please use the appropriate mode based on available connections.`);
             messageDiv.innerHTML = `
                 <div class="message-content">
                     ${contextInfo}
-                    ${data.response}
+                    ${formatAssistantResponse(data.response)}
                 </div>
                 <div class="timestamp">
                     ${new Date().toLocaleTimeString()} 
@@ -599,6 +833,10 @@ Please use the appropriate mode based on available connections.`);
             const messagesContainer = document.getElementById('chatMessages');
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+
+            const renderedContent = isUser
+                ? escapeHtml(content).replace(/\n/g, '<br>')
+                : formatAssistantResponse(content);
             
             let timestampHTML = `<div class="timestamp">${new Date().toLocaleTimeString()}`;
             if (processingTime) {
@@ -607,7 +845,7 @@ Please use the appropriate mode based on available connections.`);
             timestampHTML += `</div>`;
             
             messageDiv.innerHTML = `
-                <div class="message-content">${content}</div>
+                <div class="message-content">${renderedContent}</div>
                 ${timestampHTML}
             `;
             messagesContainer.appendChild(messageDiv);
@@ -638,20 +876,36 @@ Please use the appropriate mode based on available connections.`);
         function updateContextPanel(data) {
             // Update current symptoms
             const symptomsContainer = document.getElementById('currentSymptoms');
-            const symptoms = data.symptoms_detected || data.symptoms || [];
+            const symptoms = resolveDisplaySymptoms(data);
+            
+            console.log('🏥 [SYMPTOMS] Updating symptoms panel with', symptoms.length, 'detected symptoms');
             
             if (symptoms.length > 0) {
                 symptomsContainer.innerHTML = symptoms.map(symptom => {
                     const name = typeof symptom === 'string' ? symptom : symptom.symptom || 'Unknown';
                     const confidence = typeof symptom === 'object' ? symptom.confidence || 0 : 0;
                     const urgency = typeof symptom === 'object' ? symptom.urgency || 'unknown' : 'unknown';
+                    const confidencePercent = Math.round(confidence * 100);
+                    
+                    // Determine confidence level color
+                    let confidenceLevel = 'low';
+                    if (confidencePercent >= 70) {
+                        confidenceLevel = 'high';
+                    } else if (confidencePercent >= 40) {
+                        confidenceLevel = 'medium';
+                    }
+                    
+                    console.log(`  🏥 ${name}: ${confidencePercent}% confidence (${confidenceLevel}), urgency: ${urgency}`);
                     
                     return `
-                        <div class="context-item">
-                            <span>${name}</span>
-                            <div>
-                                <div class="confidence-bar">
-                                    <div class="confidence-fill" style="width: ${confidence * 100}%"></div>
+                        <div class="symptom-item">
+                            <div class="symptom-name">${escapeHtml(name)}</div>
+                            <div class="symptom-details">
+                                <div class="confidence-container">
+                                    <div class="confidence-bar">
+                                        <div class="confidence-fill confidence-${confidenceLevel}" style="width: ${confidencePercent}%"></div>
+                                    </div>
+                                    <span class="confidence-label">${confidencePercent}%</span>
                                 </div>
                                 <div class="urgency-indicator urgency-${urgency}">${urgency}</div>
                             </div>
@@ -693,12 +947,14 @@ Please use the appropriate mode based on available connections.`);
         async function resetConversation() {
             if (confirm('Are you sure you want to reset the conversation? All context will be lost.')) {
                 try {
+                    console.log('💾 [SESSION] Resetting session:', sessionId.substring(0, 16) + '...');
                     await fetch(`${RAG_ENDPOINT}/api/v1/conversation/${sessionId}`, {
                         method: 'DELETE'
                     });
                     
                     // Clear local storage Session ID to start completely fresh
                     localStorage.removeItem('medical_rag_session_id');
+                    console.log('💾 [SESSION] Cleared localStorage, generating new session...');
                     
                     // Reset local state
                     document.getElementById('chatMessages').innerHTML = '';

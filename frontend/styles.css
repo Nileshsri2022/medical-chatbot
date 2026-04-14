@@ -113,18 +113,70 @@
             border-bottom: none;
         }
         
+        .symptom-item {
+            background: white;
+            border-left: 4px solid #e8ebef;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        
+        .symptom-name {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        
+        .symptom-details {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .confidence-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            min-width: 120px;
+        }
+        
         .confidence-bar {
-            width: 60px;
-            height: 4px;
+            width: 80px;
+            height: 6px;
             background: #e0e0e0;
-            border-radius: 2px;
+            border-radius: 3px;
             overflow: hidden;
+            position: relative;
         }
         
         .confidence-fill {
             height: 100%;
-            background: linear-gradient(90deg, #ff6b6b, #feca57, #48cab3);
             transition: width 0.3s ease;
+            border-radius: 2px;
+        }
+        
+        .confidence-high {
+            background: linear-gradient(90deg, #10b981, #059669);
+        }
+        
+        .confidence-medium {
+            background: linear-gradient(90deg, #f59e0b, #d97706);
+        }
+        
+        .confidence-low {
+            background: linear-gradient(90deg, #ef4444, #dc2626);
+        }
+        
+        .confidence-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #4b5563;
+            min-width: 35px;
+            text-align: right;
         }
         
         .message {
@@ -157,9 +209,176 @@
             padding: 12px 16px;
             border-radius: 18px 18px 18px 4px;
             display: inline-block;
-            max-width: 70%;
+            max-width: 82%;
             word-wrap: break-word;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .assistant-rich {
+            text-align: left;
+        }
+
+        .assistant-rich p {
+            margin: 0 0 8px;
+            line-height: 1.5;
+        }
+
+        .assistant-rich p:last-child {
+            margin-bottom: 0;
+        }
+
+        .assistant-rich h5 {
+            margin: 10px 0 6px;
+            font-size: 13px;
+            color: #1f3f5b;
+            font-weight: 700;
+        }
+
+        .assistant-rich ol,
+        .assistant-rich ul {
+            margin: 6px 0 10px 18px;
+            padding: 0;
+        }
+
+        .assistant-rich .assistant-bullet-list {
+            list-style: disc;
+            margin: 6px 0 10px 18px;
+            padding-left: 0;
+        }
+
+        .assistant-rich .assistant-bullet-list li {
+            margin: 2px 0;
+        }
+
+        .assistant-rich .assistant-ordered-list {
+            list-style: none;
+            margin: 8px 0 10px;
+            padding: 0;
+        }
+
+        .assistant-rich li {
+            margin: 4px 0;
+            line-height: 1.45;
+        }
+
+        .assistant-rich .condition-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            background: #f8fbff;
+            border: 1px solid #dbeafe;
+            border-left: 4px solid #60a5fa;
+            border-radius: 10px;
+            padding: 8px 10px;
+            margin-bottom: 8px;
+        }
+
+        .assistant-rich .condition-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .assistant-rich .condition-rank {
+            background: #2563eb;
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            border-radius: 999px;
+            padding: 2px 8px;
+            line-height: 1.4;
+            min-width: 26px;
+            text-align: center;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .assistant-rich .condition-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .assistant-rich .condition-text {
+            color: #1e293b;
+            line-height: 1.45;
+            font-weight: 600;
+        }
+
+        .assistant-rich .condition-metrics {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 6px;
+        }
+
+        .assistant-rich .condition-metric {
+            background: #e2ecff;
+            color: #1e40af;
+            border: 1px solid #c7d7ff;
+            border-radius: 999px;
+            padding: 2px 8px;
+            font-size: 11px;
+            line-height: 1.35;
+        }
+
+        .assistant-rich strong {
+            color: #17344d;
+        }
+
+        .assistant-rich code {
+            background: #eef3f8;
+            color: #24527a;
+            padding: 1px 5px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+
+        .assistant-section {
+            background: #f7fafc;
+            border: 1px solid #e6edf3;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin: 8px 0;
+        }
+
+        .assistant-section h5 {
+            margin-top: 0;
+        }
+
+        .symptom-chip-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .symptom-chip {
+            display: inline-flex;
+            align-items: center;
+            background: #e7f2ff;
+            border: 1px solid #bfd9ff;
+            color: #234a78;
+            font-size: 12px;
+            border-radius: 999px;
+            padding: 3px 9px;
+            line-height: 1.2;
+        }
+
+        .assistant-alert {
+            border-left: 4px solid #d97706;
+            background: #fff7ed;
+            color: #7c2d12;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin: 14px 0 10px;
+            line-height: 1.45;
+        }
+
+        .assistant-alert-soft {
+            border-left-color: #ea580c;
+            background: #fff1e6;
+            color: #7a3412;
+            font-weight: 500;
         }
         
         .enhanced-message {
@@ -445,6 +664,15 @@
             font-size: 10px;
             color: #68707a;
             margin-bottom: 6px;
+            min-width: 0;
+            gap: 8px;
+        }
+        
+        .history-entry-header span {
+            min-width: 0;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            white-space: normal;
         }
 
         .history-turn {
