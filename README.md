@@ -247,3 +247,10 @@ curl -X POST http://localhost:8002/api/v1/circuit-reset
 
 **🏥 Medical RAG Chatbot System**  
 *Transforming Medical Conversations with AI Intelligence*
+
+<!-- Ask Copilot:
+
+“Which file is most central in this project?”
+
+If Graphify is helping:
+Answer mentions relationships / dependencies -->

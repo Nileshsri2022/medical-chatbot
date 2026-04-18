@@ -43,6 +43,75 @@ The Medical RAG Chatbot is an intelligent conversational AI with memory, context
 
 ## 🧠 Modular Architecture
 
+```mermaid
+flowchart TB
+    subgraph Frontend
+        F[serve_frontend.py]
+    end
+
+    subgraph "Backend Server"
+        subgraph API
+            A1[chat_routes.py]
+            A2[chat.py]
+            A3[dependencies.py]
+            A4[deps.py]
+        end
+
+        subgraph RAG
+            R1[engine.py]
+            R2[vector_store.py]
+            R3[document_loader.py]
+            R4[memory.py]
+            R5[context.py]
+            R6[entities.py]
+            R7[symptoms.py]
+        end
+
+        subgraph Core
+            C1[security.py]
+            C2[monitoring.py]
+            C3[reliability.py]
+            C4[profiling.py]
+        end
+
+        subgraph Models
+            M1[schemas.py]
+            M2[errors.py]
+        end
+
+        subgraph Services
+            S1[conversation_service.py]
+        end
+
+        Config[config.py]
+        Server1[medical_rag_server.py]
+        Server2[llm_server.py]
+    end
+
+    F -->|"HTTP"| Server1
+    Server1 --> A1
+    Server1 --> A2
+    Server1 --> Config
+    A1 --> S1
+    A2 --> S1
+    S1 --> R1
+    S1 --> M1
+    R1 --> R2
+    R1 --> R3
+    R1 --> R4
+    R1 --> R5
+    R1 --> R6
+    R1 --> R7
+    R2 --> Config
+    R3 --> Config
+    C1 --> R1
+    C2 --> R1
+    C3 --> R1
+    C4 --> R1
+    M2 --> M1
+    Server2 --> Config
+```
+
 ```
 backend/
 ├── api/                          # API Layer

@@ -37,9 +37,22 @@ class ExtractedSymptom:
 class SymptomExtractor:
     """Advanced symptom extraction powered by Kaggle Symptom2Disease dataset"""
 
+    SIMILARITY_THRESHOLD = 0.12
+    MAX_SYMPTOMS = 5
+
+    HIGH_URGENCY_CONDITIONS = {
+        "Heart Disease",
+        "Heart attack",
+        "Covid",
+        "Hypertension",
+        "Asthma",
+    }
+    LOW_URGENCY_CONDITIONS = {"Common Cold", "Acne", "Allergy"}
+
     def __init__(self):
         self.symptom_database: Dict = {}
         self.vectorizer: Optional[TfidfVectorizer] = None
+        self.tfidf_matrix: Optional[np.ndarray] = None
         self.disease_texts: List[str] = []
         self.disease_labels: List[str] = []
         self.is_trained: bool = False
@@ -100,11 +113,22 @@ class SymptomExtractor:
         emr_path = os.path.join(base_dir, "data", "sample_emr_dataset.csv")
 
         try:
+            loaded = False
             if os.path.exists(emr_path):
-                self._load_emr_dataset(emr_path)
-            elif os.path.exists(kaggle_path):
-                self._load_kaggle_dataset(kaggle_path)
-            else:
+                try:
+                    self._load_emr_dataset(emr_path)
+                    loaded = True
+                except Exception as e:
+                    print(f"⚠️ EMR load failed: {e}")
+
+            if not loaded and os.path.exists(kaggle_path):
+                try:
+                    self._load_kaggle_dataset(kaggle_path)
+                    loaded = True
+                except Exception as e:
+                    print(f"⚠️ Kaggle load failed: {e}")
+
+            if not loaded:
                 print("⚠️ No dataset found, using fallback symptom database")
                 self._load_fallback()
         except Exception as e:
@@ -138,13 +162,13 @@ class SymptomExtractor:
             self.disease_labels.append(disease)
             self.disease_texts.append(combined_text)
 
-            disease_keywords = set(
-                re.findall(r"[a-z]{3,}", str(disease).lower())
-            )
+            disease_keywords = set(re.findall(r"[a-z]{3,}", str(disease).lower()))
 
             self.symptom_database[disease] = {
                 "text": combined_text,
-                "urgency": "high" if disease in ["Heart Disease"] else "moderate",
+                "urgency": "high"
+                if disease in self.HIGH_URGENCY_CONDITIONS
+                else "moderate",
                 "keywords": disease_keywords,
                 "follow_up_questions": [
                     f"Do you have a history of {disease}?",
@@ -168,11 +192,11 @@ class SymptomExtractor:
 
             urgency = (
                 "high"
-                if disease in ["Heart attack", "Covid", "Hypertension", "Asthma"]
+                if disease in self.HIGH_URGENCY_CONDITIONS
+                else "low"
+                if disease in self.LOW_URGENCY_CONDITIONS
                 else "moderate"
             )
-            if disease in ["Common Cold", "Acne", "Allergy"]:
-                urgency = "low"
 
             self.symptom_database[disease] = {
                 "text": combined_text,
@@ -190,6 +214,13 @@ class SymptomExtractor:
 
     def _load_fallback(self):
         """Load fallback symptom database"""
+        if self.vectorizer is None:
+            self.vectorizer = TfidfVectorizer(
+                max_features=1000,
+                stop_words="english",
+                ngram_range=(1, 2),
+            )
+
         fallback_conditions = [
             ("Common Cold", ["runny nose", "sore throat", "cough", "sneezing"], "low"),
             ("Flu", ["fever", "body aches", "fatigue", "cough"], "moderate"),
@@ -219,7 +250,12 @@ class SymptomExtractor:
     def extract_symptoms(self, text: str) -> List[ExtractedSymptom]:
         """Extract and analyze symptoms by comparing against the dataset"""
         self._ensure_loaded()
-        if not self.is_trained or not text.strip():
+        if (
+            not self.is_trained
+            or not text.strip()
+            or self.vectorizer is None
+            or self.tfidf_matrix is None
+        ):
             return []
 
         text_lower = text.lower().strip()
@@ -232,9 +268,11 @@ class SymptomExtractor:
         top_causes = [
             self.disease_labels[idx]
             for idx in top_indices
-            if similarities[idx] >= 0.12
+            if similarities[idx] >= self.SIMILARITY_THRESHOLD
         ]
-        top_confidence = float(similarities[top_indices[0]]) if len(top_indices) else 0.0
+        top_confidence = (
+            float(similarities[top_indices[0]]) if len(top_indices) else 0.0
+        )
 
         direct_matches = []
         for phrase in self._direct_symptom_phrases:
@@ -289,4 +327,6 @@ class SymptomExtractor:
                     )
                 )
 
-        return sorted(found_symptoms, key=lambda x: x.confidence, reverse=True)[:5]
+        return sorted(found_symptoms, key=lambda x: x.confidence, reverse=True)[
+            : self.MAX_SYMPTOMS
+        ]
