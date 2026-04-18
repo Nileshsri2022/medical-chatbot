@@ -1,0 +1,164 @@
+{
+  "communities": {
+    "0": [
+      "ErrorResponse",
+      "FastAPIApp",
+      "MedicalDisclaimer",
+      "PerformanceProfiler",
+      "PrometheusMetrics",
+      "RateLimiter",
+      "ServerConfig",
+      "StructuredLogger",
+      "cors_proxy",
+      "frontend_app"
+    ],
+    "1": [
+      "ContextBuilder",
+      "ConversationContext",
+      "ExtractedEntities",
+      "ExtractedSymptom",
+      "MedicalEntityRecognizer",
+      "MedicalRAGEnrichmentEngine",
+      "RAGPipeline",
+      "SymptomExtractor",
+      "api_integration_tests",
+      "tfidf_vectorizer"
+    ],
+    "2": [
+      "ChatRequestModel",
+      "ConversationInteraction",
+      "ConversationMemory",
+      "ConversationState",
+      "InputSanitizer",
+      "rag_engine_tests"
+    ],
+    "3": [
+      "CircuitBreaker",
+      "HTTPClients",
+      "LLMBackend",
+      "LLMHealthChecker"
+    ],
+    "4": [
+      "bm25_retrieval",
+      "chromadb_store",
+      "hybrid_retriever"
+    ],
+    "5": [
+      "MedicalDocumentLoader",
+      "MedicalVectorStore"
+    ],
+    "6": [
+      "conversation_service",
+      "sqlite_backend"
+    ]
+  },
+  "god_nodes": [
+    {
+      "id": "FastAPIApp",
+      "label": "FastAPI App",
+      "degree": 15
+    },
+    {
+      "id": "MedicalRAGEnrichmentEngine",
+      "label": "MedicalRAGEnrichmentEngine",
+      "degree": 9
+    },
+    {
+      "id": "ConversationMemory",
+      "label": "ConversationMemory",
+      "degree": 6
+    },
+    {
+      "id": "RAGPipeline",
+      "label": "RAG Processing Pipeline",
+      "degree": 5
+    },
+    {
+      "id": "SymptomExtractor",
+      "label": "SymptomExtractor",
+      "degree": 4
+    },
+    {
+      "id": "ContextBuilder",
+      "label": "ContextBuilder",
+      "degree": 4
+    },
+    {
+      "id": "MedicalEntityRecognizer",
+      "label": "MedicalEntityRecognizer",
+      "degree": 3
+    },
+    {
+      "id": "ChatRequestModel",
+      "label": "ChatRequestModel",
+      "degree": 3
+    },
+    {
+      "id": "ExtractedSymptom",
+      "label": "ExtractedSymptom",
+      "degree": 3
+    },
+    {
+      "id": "ConversationContext",
+      "label": "ConversationContext",
+      "degree": 3
+    }
+  ],
+  "surprises": [
+    {
+      "source": "Frontend Application",
+      "target": "FastAPI App",
+      "source_files": [
+        "frontend/app.js",
+        "backend/medical_rag_server.py"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories; peripheral node `Frontend Application` unexpectedly reaches hub `FastAPI App`"
+    },
+    {
+      "source": "CORS Proxy",
+      "target": "FastAPI App",
+      "source_files": [
+        "scripts/cors-proxy.py",
+        "backend/medical_rag_server.py"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "proxies_to",
+      "why": "connects across different repos/directories; peripheral node `CORS Proxy` unexpectedly reaches hub `FastAPI App`"
+    },
+    {
+      "source": "API Integration Tests",
+      "target": "MedicalRAGEnrichmentEngine",
+      "source_files": [
+        "tests/test_api_integration.py",
+        "backend/rag/engine.py"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "tests",
+      "why": "connects across different repos/directories; peripheral node `API Integration Tests` unexpectedly reaches hub `MedicalRAGEnrichmentEngine`"
+    },
+    {
+      "source": "RAG Engine Tests",
+      "target": "ConversationMemory",
+      "source_files": [
+        "tests/test_rag_engine.py",
+        "backend/rag/memory.py"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "tests",
+      "why": "connects across different repos/directories; peripheral node `RAG Engine Tests` unexpectedly reaches hub `ConversationMemory`"
+    },
+    {
+      "source": "FastAPI App",
+      "target": "InputSanitizer",
+      "source_files": [
+        "backend/medical_rag_server.py",
+        "backend/core/security.py"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "validates_input_with",
+      "why": "bridges separate communities; peripheral node `InputSanitizer` unexpectedly reaches hub `FastAPI App`"
+    }
+  ]
+}

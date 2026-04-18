@@ -4,6 +4,7 @@ Uses ML (TF-IDF) to match user symptoms against disease database
 """
 
 import os
+import re
 from typing import List, Dict, Optional
 from dataclasses import dataclass
 from enum import Enum
@@ -43,6 +44,34 @@ class SymptomExtractor:
         self.disease_labels: List[str] = []
         self.is_trained: bool = False
         self._loaded: bool = False
+        self._direct_symptom_phrases = [
+            "chest pain",
+            "shortness of breath",
+            "sore throat",
+            "runny nose",
+            "body aches",
+            "stomach pain",
+            "abdominal pain",
+            "headache",
+            "migraine",
+            "dizziness",
+            "nausea",
+            "vomiting",
+            "diarrhea",
+            "constipation",
+            "fatigue",
+            "weakness",
+            "fever",
+            "chills",
+            "cough",
+            "wheezing",
+            "palpitations",
+            "rash",
+            "swelling",
+            "pain",
+            "ache",
+            "cold",
+        ]
 
     def _ensure_loaded(self):
         """Lazy load the dataset on first use"""
@@ -109,9 +138,14 @@ class SymptomExtractor:
             self.disease_labels.append(disease)
             self.disease_texts.append(combined_text)
 
+            disease_keywords = set(
+                re.findall(r"[a-z]{3,}", str(disease).lower())
+            )
+
             self.symptom_database[disease] = {
                 "text": combined_text,
                 "urgency": "high" if disease in ["Heart Disease"] else "moderate",
+                "keywords": disease_keywords,
                 "follow_up_questions": [
                     f"Do you have a history of {disease}?",
                     "Have these symptoms worsened recently?",
@@ -188,35 +222,71 @@ class SymptomExtractor:
         if not self.is_trained or not text.strip():
             return []
 
-        found_symptoms = []
+        text_lower = text.lower().strip()
+        found_symptoms: List[ExtractedSymptom] = []
 
-        user_vec = self.vectorizer.transform([text.lower()])
+        user_vec = self.vectorizer.transform([text_lower])
         similarities = cosine_similarity(user_vec, self.tfidf_matrix)[0]
 
-        top_indices = np.argsort(similarities)[::-1]
+        top_indices = np.argsort(similarities)[::-1][:5]
+        top_causes = [
+            self.disease_labels[idx]
+            for idx in top_indices
+            if similarities[idx] >= 0.12
+        ]
+        top_confidence = float(similarities[top_indices[0]]) if len(top_indices) else 0.0
 
-        for idx in top_indices:
-            confidence = similarities[idx]
-            if confidence > 0.1:
-                disease = self.disease_labels[idx]
-                data = self.symptom_database[disease]
+        direct_matches = []
+        for phrase in self._direct_symptom_phrases:
+            if phrase in text_lower:
+                direct_matches.append(phrase)
 
-                user_words = set(text.lower().replace(",", "").replace(".", "").split())
-                disease_words = set(self.vectorizer.get_feature_names_out())
-                matched_keywords = list(user_words.intersection(disease_words))
-
-                if not matched_keywords:
-                    matched_keywords = ["general symptoms"]
-
+        if direct_matches:
+            seen = set()
+            for phrase in direct_matches:
+                if phrase in seen:
+                    continue
+                seen.add(phrase)
                 found_symptoms.append(
                     ExtractedSymptom(
-                        symptom=f"Symptoms matching {disease}",
-                        confidence=float(confidence),
-                        matched_text=matched_keywords[:3],
+                        symptom=phrase,
+                        confidence=max(0.55, top_confidence),
+                        matched_text=[phrase],
                         related_context=[],
-                        urgency=data["urgency"],
-                        possible_causes=[disease],
+                        urgency="moderate",
+                        possible_causes=top_causes[:3],
+                    )
+                )
+        else:
+            # Fallback to weak lexical extraction so we still ground on user wording.
+            user_words = set(re.findall(r"[a-z]{3,}", text_lower))
+            noisy_terms = {
+                "patient",
+                "presents",
+                "with",
+                "admit",
+                "admitted",
+                "unit",
+                "hospital",
+                "room",
+                "floor",
+                "male",
+                "female",
+                "years",
+                "year",
+                "old",
+            }
+            cleaned_words = [w for w in user_words if w not in noisy_terms]
+            for word in cleaned_words[:3]:
+                found_symptoms.append(
+                    ExtractedSymptom(
+                        symptom=word,
+                        confidence=max(0.35, top_confidence),
+                        matched_text=[word],
+                        related_context=[],
+                        urgency="low",
+                        possible_causes=top_causes[:2],
                     )
                 )
 
-        return sorted(found_symptoms, key=lambda x: x.confidence, reverse=True)[:3]
+        return sorted(found_symptoms, key=lambda x: x.confidence, reverse=True)[:5]

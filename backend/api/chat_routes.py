@@ -36,6 +36,68 @@ router = APIRouter(prefix="/api/v1", tags=["chat"])
 _rag_engine = MedicalRAGEnrichmentEngine()
 
 
+def _build_compact_description(user_message: str, result: Dict) -> str:
+    """Build a compact, input-grounded prompt as a fallback for slow model calls."""
+    entities = result.get("entities", {}) if isinstance(result, dict) else {}
+    entity_symptoms = entities.get("symptoms", []) if isinstance(entities, dict) else []
+    entity_body_parts = (
+        entities.get("body_parts", []) if isinstance(entities, dict) else []
+    )
+
+    lines = [
+        "Analyze this patient message and return strict JSON with symptoms and illnesses.",
+        f"Patient message: {user_message}",
+    ]
+
+    if entity_symptoms:
+        lines.append("Detected symptom keywords: " + ", ".join(entity_symptoms[:8]))
+    if entity_body_parts:
+        lines.append("Detected body parts: " + ", ".join(entity_body_parts[:8]))
+
+    lines.append(
+        "Return ONLY JSON with keys: symptoms (list[str]) and illnesses (list[{name, illness_coverage, condition_coverage}])."
+    )
+    return "\n".join(lines)
+
+
+async def _call_llm_with_fallback(
+    primary_payload: Dict,
+    fallback_payload: Dict,
+) -> Dict:
+    """Call LLM with timeout handling and a compact fallback prompt on timeout."""
+    # Keep retries responsive so the UI does not appear frozen when upstream is unhealthy.
+    request_timeout = min(max(config.request_timeout, 5.0), 12.0)
+    timeout = httpx.Timeout(request_timeout, connect=config.http_connect_timeout)
+    fallback_timeout = httpx.Timeout(
+        min(6.0, request_timeout),
+        connect=min(3.0, config.http_connect_timeout),
+    )
+
+    try:
+        response = await get_http_client().post(
+            f"{config.original_llm_url}/diagnose",
+            json=primary_payload,
+            headers={"Content-Type": "application/json"},
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        return response.json()
+    except httpx.TimeoutException as exc:
+        logger.warning(
+            "Primary LLM call timed out after %.1fs, retrying with compact prompt. Error=%r",
+            request_timeout,
+            exc,
+        )
+        response = await get_http_client().post(
+            f"{config.original_llm_url}/diagnose",
+            json=fallback_payload,
+            headers={"Content-Type": "application/json"},
+            timeout=fallback_timeout,
+        )
+        response.raise_for_status()
+        return response.json()
+
+
 def _format_llm_diagnosis_response(llm_payload: Dict) -> str:
     """Convert structured diagnosis JSON into user-friendly medical guidance text."""
     symptoms = llm_payload.get("symptoms", []) if isinstance(llm_payload, dict) else []
@@ -213,6 +275,11 @@ async def chat(
             "max_tokens": chat_request.max_tokens,
             "temperature": chat_request.temperature,
         }
+        llm_fallback_payload = {
+            "description": _build_compact_description(validated_message, result),
+            "max_tokens": chat_request.max_tokens,
+            "temperature": chat_request.temperature,
+        }
 
         circuit_breaker = get_circuit_breaker()
         if not circuit_breaker.can_execute():
@@ -220,18 +287,16 @@ async def chat(
 
         llm_json: Dict = {}
         try:
-            llm_response = await get_http_client().post(
-                f"{config.original_llm_url}/diagnose",
-                json=llm_payload,
-                headers={"Content-Type": "application/json"},
-            )
-            llm_response.raise_for_status()
-            llm_json = llm_response.json()
+            llm_json = await _call_llm_with_fallback(llm_payload, llm_fallback_payload)
             circuit_breaker.record_success()
         except httpx.HTTPStatusError as exc:
             circuit_breaker.record_failure()
             logger.error(f"LLM backend returned HTTP {exc.response.status_code}: {exc}")
             raise HTTPException(status_code=502, detail="LLM backend returned an error")
+        except httpx.TimeoutException as exc:
+            circuit_breaker.record_failure()
+            logger.error("LLM backend timed out: %r", exc)
+            raise HTTPException(status_code=504, detail="LLM backend timed out")
         except httpx.HTTPError as exc:
             circuit_breaker.record_failure()
             logger.error(f"LLM backend request failed: {exc}")
@@ -312,6 +377,11 @@ async def chat_stream(
                 "max_tokens": chat_request.max_tokens,
                 "temperature": chat_request.temperature,
             }
+            llm_fallback_payload = {
+                "description": _build_compact_description(validated_message, result),
+                "max_tokens": chat_request.max_tokens,
+                "temperature": chat_request.temperature,
+            }
 
             circuit_breaker = get_circuit_breaker()
             if not circuit_breaker.can_execute():
@@ -319,17 +389,19 @@ async def chat_stream(
                 return
 
             try:
-                diagnosis_response = await get_http_client().post(
-                    f"{config.original_llm_url}/diagnose",
-                    json=llm_payload,
-                    headers={"Content-Type": "application/json"},
+                llm_json = await _call_llm_with_fallback(
+                    llm_payload,
+                    llm_fallback_payload,
                 )
-                diagnosis_response.raise_for_status()
-                llm_json = diagnosis_response.json()
                 circuit_breaker.record_success()
+            except httpx.TimeoutException as exc:
+                circuit_breaker.record_failure()
+                logger.error("LLM call timed out in stream endpoint: %r", exc)
+                yield f'data: {json.dumps({"error": "LLM backend timed out"})}\n\n'
+                return
             except Exception as exc:
                 circuit_breaker.record_failure()
-                logger.error(f"LLM call failed: {exc}")
+                logger.error("LLM call failed: %r", exc)
                 yield f'data: {json.dumps({"error": "LLM backend error"})}\n\n'
                 return
 

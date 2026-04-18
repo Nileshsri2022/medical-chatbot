@@ -1,0 +1,171 @@
+{
+  "total_nodes": 765,
+  "total_edges": 1115,
+  "files": [
+    {
+      "file": "backend\\config.py",
+      "nodes": 5,
+      "edges": 7
+    },
+    {
+      "file": "backend\\llm_server.py",
+      "nodes": 15,
+      "edges": 32
+    },
+    {
+      "file": "backend\\medical_rag_engine.py",
+      "nodes": 88,
+      "edges": 140
+    },
+    {
+      "file": "backend\\medical_rag_server.py",
+      "nodes": 4,
+      "edges": 17
+    },
+    {
+      "file": "backend\\__init__.py",
+      "nodes": 2,
+      "edges": 3
+    },
+    {
+      "file": "backend\\api\\chat.py",
+      "nodes": 6,
+      "edges": 11
+    },
+    {
+      "file": "backend\\api\\chat_routes.py",
+      "nodes": 45,
+      "edges": 70
+    },
+    {
+      "file": "backend\\api\\dependencies.py",
+      "nodes": 30,
+      "edges": 42
+    },
+    {
+      "file": "backend\\api\\deps.py",
+      "nodes": 8,
+      "edges": 10
+    },
+    {
+      "file": "backend\\api\\__init__.py",
+      "nodes": 2,
+      "edges": 4
+    },
+    {
+      "file": "backend\\core\\monitoring.py",
+      "nodes": 34,
+      "edges": 45
+    },
+    {
+      "file": "backend\\core\\profiling.py",
+      "nodes": 30,
+      "edges": 39
+    },
+    {
+      "file": "backend\\core\\reliability.py",
+      "nodes": 38,
+      "edges": 62
+    },
+    {
+      "file": "backend\\core\\security.py",
+      "nodes": 50,
+      "edges": 69
+    },
+    {
+      "file": "backend\\core\\__init__.py",
+      "nodes": 2,
+      "edges": 2
+    },
+    {
+      "file": "backend\\models\\errors.py",
+      "nodes": 16,
+      "edges": 23
+    },
+    {
+      "file": "backend\\models\\schemas.py",
+      "nodes": 16,
+      "edges": 18
+    },
+    {
+      "file": "backend\\models\\__init__.py",
+      "nodes": 2,
+      "edges": 2
+    },
+    {
+      "file": "backend\\rag\\context.py",
+      "nodes": 18,
+      "edges": 25
+    },
+    {
+      "file": "backend\\rag\\document_loader.py",
+      "nodes": 25,
+      "edges": 37
+    },
+    {
+      "file": "backend\\rag\\engine.py",
+      "nodes": 25,
+      "edges": 43
+    },
+    {
+      "file": "backend\\rag\\entities.py",
+      "nodes": 19,
+      "edges": 27
+    },
+    {
+      "file": "backend\\rag\\memory.py",
+      "nodes": 31,
+      "edges": 54
+    },
+    {
+      "file": "backend\\rag\\symptoms.py",
+      "nodes": 22,
+      "edges": 37
+    },
+    {
+      "file": "backend\\rag\\vector_store.py",
+      "nodes": 27,
+      "edges": 41
+    },
+    {
+      "file": "backend\\rag\\__init__.py",
+      "nodes": 8,
+      "edges": 12
+    },
+    {
+      "file": "backend\\services\\conversation_service.py",
+      "nodes": 25,
+      "edges": 36
+    },
+    {
+      "file": "backend\\services\\__init__.py",
+      "nodes": 2,
+      "edges": 2
+    },
+    {
+      "file": "frontend\\serve_frontend.py",
+      "nodes": 4,
+      "edges": 7
+    },
+    {
+      "file": "scripts\\cors-proxy.py",
+      "nodes": 16,
+      "edges": 27
+    },
+    {
+      "file": "tests\\conftest.py",
+      "nodes": 32,
+      "edges": 38
+    },
+    {
+      "file": "tests\\test_api_integration.py",
+      "nodes": 38,
+      "edges": 42
+    },
+    {
+      "file": "tests\\test_rag_engine.py",
+      "nodes": 80,
+      "edges": 91
+    }
+  ]
+}

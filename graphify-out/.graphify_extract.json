@@ -1,0 +1,583 @@
+{
+  "nodes": [
+    {
+      "id": "ServerConfig",
+      "label": "ServerConfig",
+      "file_type": "code",
+      "source_file": "backend/config.py"
+    },
+    {
+      "id": "FastAPIApp",
+      "label": "FastAPI App",
+      "file_type": "code",
+      "source_file": "backend/medical_rag_server.py"
+    },
+    {
+      "id": "MedicalRAGEnrichmentEngine",
+      "label": "MedicalRAGEnrichmentEngine",
+      "file_type": "code",
+      "source_file": "backend/rag/engine.py"
+    },
+    {
+      "id": "MedicalEntityRecognizer",
+      "label": "MedicalEntityRecognizer",
+      "file_type": "code",
+      "source_file": "backend/rag/entities.py"
+    },
+    {
+      "id": "SymptomExtractor",
+      "label": "SymptomExtractor",
+      "file_type": "code",
+      "source_file": "backend/rag/symptoms.py"
+    },
+    {
+      "id": "ConversationMemory",
+      "label": "ConversationMemory",
+      "file_type": "code",
+      "source_file": "backend/rag/memory.py"
+    },
+    {
+      "id": "ContextBuilder",
+      "label": "ContextBuilder",
+      "file_type": "code",
+      "source_file": "backend/rag/context.py"
+    },
+    {
+      "id": "ChatRequestModel",
+      "label": "ChatRequestModel",
+      "file_type": "code",
+      "source_file": "backend/api/chat_routes.py"
+    },
+    {
+      "id": "InputSanitizer",
+      "label": "InputSanitizer",
+      "file_type": "code",
+      "source_file": "backend/core/security.py"
+    },
+    {
+      "id": "MedicalDisclaimer",
+      "label": "MedicalDisclaimer",
+      "file_type": "code",
+      "source_file": "backend/core/security.py"
+    },
+    {
+      "id": "CircuitBreaker",
+      "label": "CircuitBreaker",
+      "file_type": "code",
+      "source_file": "backend/core/reliability.py"
+    },
+    {
+      "id": "LLMHealthChecker",
+      "label": "LLMHealthChecker",
+      "file_type": "code",
+      "source_file": "backend/core/reliability.py"
+    },
+    {
+      "id": "RateLimiter",
+      "label": "RateLimiter",
+      "file_type": "code",
+      "source_file": "backend/api/dependencies.py"
+    },
+    {
+      "id": "HTTPClients",
+      "label": "HTTPClients",
+      "file_type": "code",
+      "source_file": "backend/api/dependencies.py"
+    },
+    {
+      "id": "StructuredLogger",
+      "label": "StructuredLogger",
+      "file_type": "code",
+      "source_file": "backend/core/monitoring.py"
+    },
+    {
+      "id": "PrometheusMetrics",
+      "label": "PrometheusMetrics",
+      "file_type": "code",
+      "source_file": "backend/core/monitoring.py"
+    },
+    {
+      "id": "PerformanceProfiler",
+      "label": "PerformanceProfiler",
+      "file_type": "code",
+      "source_file": "backend/core/profiling.py"
+    },
+    {
+      "id": "MedicalDocumentLoader",
+      "label": "MedicalDocumentLoader",
+      "file_type": "code",
+      "source_file": "backend/rag/document_loader.py"
+    },
+    {
+      "id": "MedicalVectorStore",
+      "label": "MedicalVectorStore",
+      "file_type": "code",
+      "source_file": "backend/rag/vector_store.py"
+    },
+    {
+      "id": "ConversationState",
+      "label": "ConversationState",
+      "file_type": "code",
+      "source_file": "backend/models/schemas.py"
+    },
+    {
+      "id": "ExtractedSymptom",
+      "label": "ExtractedSymptom",
+      "file_type": "code",
+      "source_file": "backend/models/schemas.py"
+    },
+    {
+      "id": "ConversationInteraction",
+      "label": "ConversationInteraction",
+      "file_type": "code",
+      "source_file": "backend/models/schemas.py"
+    },
+    {
+      "id": "ConversationContext",
+      "label": "ConversationContext",
+      "file_type": "code",
+      "source_file": "backend/models/schemas.py"
+    },
+    {
+      "id": "ExtractedEntities",
+      "label": "ExtractedEntities",
+      "file_type": "code",
+      "source_file": "backend/models/schemas.py"
+    },
+    {
+      "id": "ErrorResponse",
+      "label": "ErrorResponse",
+      "file_type": "code",
+      "source_file": "backend/models/errors.py"
+    },
+    {
+      "id": "LLMBackend",
+      "label": "LLM Backend (OpenAI-compatible)",
+      "file_type": "code",
+      "source_file": "backend/llm_server.py"
+    },
+    {
+      "id": "RAGPipeline",
+      "label": "RAG Processing Pipeline",
+      "file_type": "code",
+      "source_file": "backend/rag/engine.py"
+    },
+    {
+      "id": "hybrid_retriever",
+      "label": "HybridRetriever",
+      "file_type": "code",
+      "source_file": "backend/rag/vector_store.py"
+    },
+    {
+      "id": "chromadb_store",
+      "label": "ChromaDB Vector Store",
+      "file_type": "code",
+      "source_file": "backend/rag/vector_store.py"
+    },
+    {
+      "id": "bm25_retrieval",
+      "label": "BM25 Sparse Retrieval",
+      "file_type": "code",
+      "source_file": "backend/rag/vector_store.py"
+    },
+    {
+      "id": "tfidf_vectorizer",
+      "label": "TF-IDF Vectorizer",
+      "file_type": "code",
+      "source_file": "backend/rag/symptoms.py"
+    },
+    {
+      "id": "conversation_service",
+      "label": "ConversationService",
+      "file_type": "code",
+      "source_file": "backend/services/conversation_service.py"
+    },
+    {
+      "id": "sqlite_backend",
+      "label": "SQLite Persistence",
+      "file_type": "code",
+      "source_file": "backend/services/conversation_service.py"
+    },
+    {
+      "id": "frontend_app",
+      "label": "Frontend Application",
+      "file_type": "code",
+      "source_file": "frontend/app.js"
+    },
+    {
+      "id": "cors_proxy",
+      "label": "CORS Proxy",
+      "file_type": "code",
+      "source_file": "scripts/cors-proxy.py"
+    },
+    {
+      "id": "api_integration_tests",
+      "label": "API Integration Tests",
+      "file_type": "code",
+      "source_file": "tests/test_api_integration.py"
+    },
+    {
+      "id": "rag_engine_tests",
+      "label": "RAG Engine Tests",
+      "file_type": "code",
+      "source_file": "tests/test_rag_engine.py"
+    }
+  ],
+  "edges": [
+    {
+      "source": "FastAPIApp",
+      "target": "ServerConfig",
+      "relation": "uses_config_from",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/medical_rag_server.py"
+    },
+    {
+      "source": "FastAPIApp",
+      "target": "MedicalRAGEnrichmentEngine",
+      "relation": "instantiates_and_uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/api/chat_routes.py"
+    },
+    {
+      "source": "MedicalRAGEnrichmentEngine",
+      "target": "MedicalEntityRecognizer",
+      "relation": "instantiates",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/rag/engine.py"
+    },
+    {
+      "source": "MedicalRAGEnrichmentEngine",
+      "target": "SymptomExtractor",
+      "relation": "instantiates",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/rag/engine.py"
+    },
+    {
+      "source": "MedicalRAGEnrichmentEngine",
+      "target": "ConversationMemory",
+      "relation": "instantiates",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/rag/engine.py"
+    },
+    {
+      "source": "MedicalRAGEnrichmentEngine",
+      "target": "ContextBuilder",
+      "relation": "instantiates",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/rag/engine.py"
+    },
+    {
+      "source": "MedicalRAGEnrichmentEngine",
+      "target": "ExtractedSymptom",
+      "relation": "transforms_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/rag/engine.py"
+    },
+    {
+      "source": "MedicalRAGEnrichmentEngine",
+      "target": "RAGPipeline",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "backend/rag/engine.py"
+    },
+    {
+      "source": "ConversationMemory",
+      "target": "ConversationState",
+      "relation": "uses_enum",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/rag/memory.py"
+    },
+    {
+      "source": "ConversationMemory",
+      "target": "ConversationInteraction",
+      "relation": "uses_dataclass",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/rag/memory.py"
+    },
+    {
+      "source": "ContextBuilder",
+      "target": "ConversationContext",
+      "relation": "receives_as_input",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/rag/context.py"
+    },
+    {
+      "source": "ContextBuilder",
+      "target": "ExtractedSymptom",
+      "relation": "analyzes",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/rag/context.py"
+    },
+    {
+      "source": "FastAPIApp",
+      "target": "InputSanitizer",
+      "relation": "validates_input_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/api/chat_routes.py"
+    },
+    {
+      "source": "FastAPIApp",
+      "target": "MedicalDisclaimer",
+      "relation": "includes_disclaimers_via",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/api/chat_routes.py"
+    },
+    {
+      "source": "FastAPIApp",
+      "target": "CircuitBreaker",
+      "relation": "uses_for_fault_tolerance",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/api/chat_routes.py"
+    },
+    {
+      "source": "FastAPIApp",
+      "target": "RateLimiter",
+      "relation": "uses_for_rate_limiting",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/api/dependencies.py"
+    },
+    {
+      "source": "FastAPIApp",
+      "target": "HTTPClients",
+      "relation": "uses_for_http_pooling",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/api/dependencies.py"
+    },
+    {
+      "source": "HTTPClients",
+      "target": "LLMBackend",
+      "relation": "sends_requests_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/api/chat_routes.py"
+    },
+    {
+      "source": "FastAPIApp",
+      "target": "StructuredLogger",
+      "relation": "logs_via",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "backend/core/monitoring.py"
+    },
+    {
+      "source": "FastAPIApp",
+      "target": "PrometheusMetrics",
+      "relation": "emits_metrics_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "backend/core/monitoring.py"
+    },
+    {
+      "source": "FastAPIApp",
+      "target": "LLMHealthChecker",
+      "relation": "monitors_health_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/api/chat_routes.py"
+    },
+    {
+      "source": "FastAPIApp",
+      "target": "PerformanceProfiler",
+      "relation": "profiles_performance_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7,
+      "source_file": "backend/core/profiling.py"
+    },
+    {
+      "source": "MedicalDocumentLoader",
+      "target": "MedicalVectorStore",
+      "relation": "feeds_documents_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "backend/rag/document_loader.py"
+    },
+    {
+      "source": "ChatRequestModel",
+      "target": "ConversationState",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "backend/api/chat_routes.py"
+    },
+    {
+      "source": "ErrorResponse",
+      "target": "FastAPIApp",
+      "relation": "returned_by",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "backend/models/errors.py"
+    },
+    {
+      "source": "CircuitBreaker",
+      "target": "LLMBackend",
+      "relation": "protects_access_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/core/reliability.py"
+    },
+    {
+      "source": "LLMHealthChecker",
+      "target": "LLMBackend",
+      "relation": "monitors",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/core/reliability.py"
+    },
+    {
+      "source": "SymptomExtractor",
+      "target": "ExtractedSymptom",
+      "relation": "produces",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/rag/symptoms.py"
+    },
+    {
+      "source": "MedicalEntityRecognizer",
+      "target": "ExtractedEntities",
+      "relation": "produces",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/rag/entities.py"
+    },
+    {
+      "source": "FastAPIApp",
+      "target": "ChatRequestModel",
+      "relation": "validates_incoming_requests_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/api/chat_routes.py"
+    },
+    {
+      "source": "RAGPipeline",
+      "target": "MedicalEntityRecognizer",
+      "relation": "invokes_parallely_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/rag/engine.py"
+    },
+    {
+      "source": "RAGPipeline",
+      "target": "SymptomExtractor",
+      "relation": "invokes_parallely_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/rag/engine.py"
+    },
+    {
+      "source": "RAGPipeline",
+      "target": "ConversationMemory",
+      "relation": "retrieves_context_from",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/rag/engine.py"
+    },
+    {
+      "source": "RAGPipeline",
+      "target": "ContextBuilder",
+      "relation": "enriches_context_via",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/rag/engine.py"
+    },
+    {
+      "source": "ConversationMemory",
+      "target": "ConversationContext",
+      "relation": "returns",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/rag/memory.py"
+    },
+    {
+      "source": "MedicalRAGEnrichmentEngine",
+      "target": "ConversationContext",
+      "relation": "receives_from_memory",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "backend/rag/engine.py"
+    },
+    {
+      "source": "InputSanitizer",
+      "target": "ChatRequestModel",
+      "relation": "validates_fields_of",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "backend/core/security.py"
+    },
+    {
+      "source": "hybrid_retriever",
+      "target": "chromadb_store",
+      "relation": "delegates_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0
+    },
+    {
+      "source": "hybrid_retriever",
+      "target": "bm25_retrieval",
+      "relation": "uses_for_sparse_search",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0
+    },
+    {
+      "source": "SymptomExtractor",
+      "target": "tfidf_vectorizer",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0
+    },
+    {
+      "source": "conversation_service",
+      "target": "sqlite_backend",
+      "relation": "persists_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0
+    },
+    {
+      "source": "frontend_app",
+      "target": "FastAPIApp",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0
+    },
+    {
+      "source": "cors_proxy",
+      "target": "FastAPIApp",
+      "relation": "proxies_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0
+    },
+    {
+      "source": "api_integration_tests",
+      "target": "MedicalRAGEnrichmentEngine",
+      "relation": "tests",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0
+    },
+    {
+      "source": "rag_engine_tests",
+      "target": "ConversationMemory",
+      "relation": "tests",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0
+    }
+  ],
+  "hyperedges": [],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

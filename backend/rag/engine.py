@@ -174,8 +174,15 @@ Please provide a thoughtful, contextual response that demonstrates understanding
     ) -> str:
         parts = ["MEDICAL CONTEXT:"]
 
+        user_reported_symptoms = entities.get("symptoms", [])
+        if user_reported_symptoms:
+            parts.append(
+                "User-reported symptoms from current input: "
+                + ", ".join(user_reported_symptoms)
+            )
+
         if symptoms:
-            parts.append("Current symptoms detected:")
+            parts.append("Extractor output grounded in current input:")
             for symptom in symptoms:
                 symptom_str = (
                     symptom.get("symptom", "Unknown")
@@ -193,6 +200,16 @@ Please provide a thoughtful, contextual response that demonstrates understanding
                 parts.append(
                     f"  - {symptom_str} (confidence: {confidence:.2f}, urgency: {urgency})"
                 )
+                possible_causes = (
+                    symptom.get("possible_causes", [])
+                    if isinstance(symptom, dict)
+                    else []
+                )
+                if possible_causes:
+                    parts.append(
+                        "    Dataset-informed possible causes: "
+                        + ", ".join(possible_causes[:3])
+                    )
 
         entity_types = ["body_parts", "conditions", "medications", "temporal"]
         for entity_type in entity_types:
@@ -222,6 +239,10 @@ EXTRACTED FROM CURRENT INPUT:
 - Number of symptoms detected: {len(symptoms)}
 - Medical entities found: {sum(len(v) if isinstance(v, list) else 0 for v in entities.values())}
 - Urgency indicators: {len(entities.get("urgency_indicators", []))}
+
+INSTRUCTION:
+- Ground symptom identification primarily on CURRENT USER INPUT.
+- Use any dataset-informed causes only as secondary hints, not as confirmed symptoms.
 """
 
     def _build_response_guidance(self, context: Dict) -> str:

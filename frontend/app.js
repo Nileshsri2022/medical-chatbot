@@ -10,6 +10,27 @@
         
         const RAG_ENDPOINT = 'http://localhost:8002';
         const DIRECT_LLM_ENDPOINT = 'http://localhost:8001';
+        const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
+        const STREAM_REQUEST_TIMEOUT_MS = 45000;
+
+        async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+            try {
+                return await fetch(url, {
+                    ...options,
+                    signal: controller.signal,
+                });
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    throw new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
+                }
+                throw error;
+            } finally {
+                clearTimeout(timer);
+            }
+        }
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
@@ -56,7 +77,11 @@
         async function loadConversationHistory() {
             console.log('💾 [SESSION] Loading conversation history for session:', sessionId.substring(0, 16) + '...');
             try {
-                const response = await fetch(`${RAG_ENDPOINT}/api/v1/conversation-history/${sessionId}`);
+                const response = await fetchWithTimeout(
+                    `${RAG_ENDPOINT}/api/v1/conversation-history/${sessionId}`,
+                    {},
+                    15000
+                );
                 if (response.ok) {
                     const data = await response.json();
                     const history = data.conversation_context?.conversation_history || [];
@@ -380,7 +405,11 @@
         async function refreshConversationHistoryPanel() {
             if (!sessionId) return;
             try {
-                const response = await fetch(`${RAG_ENDPOINT}/api/v1/conversation-history/${sessionId}`);
+                const response = await fetchWithTimeout(
+                    `${RAG_ENDPOINT}/api/v1/conversation-history/${sessionId}`,
+                    {},
+                    15000
+                );
                 if (!response.ok) return;
                 const data = await response.json();
                 const history = data.conversation_context?.conversation_history || [];
@@ -404,10 +433,10 @@
             
             try {
                 // Test RAG server
-                const ragResponse = await fetch(`${RAG_ENDPOINT}/api/v1/health`, {
+                const ragResponse = await fetchWithTimeout(`${RAG_ENDPOINT}/api/v1/health`, {
                     method: 'GET',
                     headers: { 'Content-Type': 'application/json' }
-                });
+                }, 8000);
                 
                 if (ragResponse.ok) {
                     ragStatus.textContent = '✅ Connected';
@@ -420,10 +449,10 @@
                 }
                 
                 // Test LLM backend
-                const llmResponse = await fetch(`${DIRECT_LLM_ENDPOINT}/health`, {
+                const llmResponse = await fetchWithTimeout(`${DIRECT_LLM_ENDPOINT}/health`, {
                     method: 'GET',
                     headers: { 'Content-Type': 'application/json' }
-                });
+                }, 8000);
                 
                 if (llmResponse.ok) {
                     llmStatus.textContent = '✅ Connected';
@@ -562,7 +591,7 @@ Please use the appropriate mode based on available connections.`);
                     // Try streaming first, fallback to non-streaming
                     try {
                         console.log('🚀 [STREAMING] Initiating streaming request to /api/v1/chat/stream');
-                        response = await fetch(`${RAG_ENDPOINT}/api/v1/chat/stream`, {
+                        response = await fetchWithTimeout(`${RAG_ENDPOINT}/api/v1/chat/stream`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -571,7 +600,7 @@ Please use the appropriate mode based on available connections.`);
                                 max_tokens: maxTokens,
                                 temperature: temperature
                             })
-                        });
+                        }, STREAM_REQUEST_TIMEOUT_MS);
                         
                         if (!response.ok) {
                             let streamErrorBody = '';
@@ -591,6 +620,8 @@ Please use the appropriate mode based on available connections.`);
                         let responseData = null;
                         let fullText = '';
                         let chunkCount = 0;
+                        let streamErrorMessage = null;
+                        let sseBuffer = '';
 
                         removeLoadingMessage();
                         const streamMessageDiv = createStreamingMessageElement();
@@ -599,6 +630,41 @@ Please use the appropriate mode based on available connections.`);
                         const contentElement = streamMessageDiv.querySelector('.streaming-content');
                         console.log('📝 [STREAMING] Streaming message element created and added to DOM');
 
+                        const processSseEvent = (eventPayload) => {
+                            if (!eventPayload) {
+                                return;
+                            }
+
+                            if (eventPayload === '[DONE]') {
+                                return;
+                            }
+
+                            try {
+                                const jsonData = JSON.parse(eventPayload);
+                                if (jsonData.error) {
+                                    streamErrorMessage = jsonData.error;
+                                    console.error('❌ [STREAMING] Stream error:', jsonData.error);
+                                    contentElement.innerHTML += `<p style="color: #dc3545;">❌ ${jsonData.error}</p>`;
+                                } else if (jsonData.type === 'start') {
+                                    console.log('▶️ [STREAMING] Stream started');
+                                    contentElement.innerHTML = `<p>${jsonData.text}</p>`;
+                                } else if (jsonData.type === 'chunk') {
+                                    chunkCount++;
+                                    fullText += jsonData.text;
+                                    contentElement.lastChild.textContent = fullText;
+                                    if (chunkCount % 10 === 0) {
+                                        console.log(`📊 [STREAMING] Received ${chunkCount} chunks, text length: ${fullText.length}`);
+                                    }
+                                } else if (jsonData.type === 'complete') {
+                                    console.log('✅ [STREAMING] Received complete response with data:', jsonData.data);
+                                    responseData = jsonData.data;
+                                }
+                                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                            } catch (e) {
+                                console.error('❌ [STREAMING] JSON parse error:', e, 'Payload:', eventPayload);
+                            }
+                        };
+
                         while (true) {
                             const { done, value } = await reader.read();
                             if (done) {
@@ -606,69 +672,79 @@ Please use the appropriate mode based on available connections.`);
                                 break;
                             }
 
-                            const chunk = decoder.decode(value, { stream: true });
-                            const lines = chunk.split('\n');
+                            sseBuffer += decoder.decode(value, { stream: true });
 
-                            for (const line of lines) {
-                                if (line.startsWith('data: ')) {
-                                    try {
-                                        const jsonData = JSON.parse(line.slice(6));
-                                        if (jsonData.error) {
-                                            console.error('❌ [STREAMING] Stream error:', jsonData.error);
-                                            contentElement.innerHTML += `<p style="color: #dc3545;">❌ ${jsonData.error}</p>`;
-                                        } else if (jsonData.type === 'start') {
-                                            console.log('▶️ [STREAMING] Stream started');
-                                            contentElement.innerHTML = `<p>${jsonData.text}</p>`;
-                                        } else if (jsonData.type === 'chunk') {
-                                            chunkCount++;
-                                            fullText += jsonData.text;
-                                            contentElement.lastChild.textContent = fullText;
-                                            if (chunkCount % 10 === 0) {
-                                                console.log(`📊 [STREAMING] Received ${chunkCount} chunks, text length: ${fullText.length}`);
-                                            }
-                                        } else if (jsonData.type === 'complete') {
-                                            console.log('✅ [STREAMING] Received complete response with data:', jsonData.data);
-                                            responseData = jsonData.data;
-                                        }
-                                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                                    } catch (e) {
-                                        console.error('❌ [STREAMING] JSON parse error:', e, 'Line:', line);
-                                    }
+                            let boundaryIndex = sseBuffer.indexOf('\n\n');
+                            while (boundaryIndex !== -1) {
+                                const rawEvent = sseBuffer.slice(0, boundaryIndex);
+                                sseBuffer = sseBuffer.slice(boundaryIndex + 2);
+
+                                const dataLines = rawEvent
+                                    .split('\n')
+                                    .filter((line) => line.startsWith('data:'))
+                                    .map((line) => line.slice(5).trimStart());
+
+                                if (dataLines.length > 0) {
+                                    processSseEvent(dataLines.join('\n'));
                                 }
+
+                                boundaryIndex = sseBuffer.indexOf('\n\n');
                             }
                         }
 
-                        if (responseData) {
-                            const endTime = Date.now();
-                            const responseTime = (endTime - startTime) / 1000;
-                            
-                            streamMessageDiv.innerHTML = `
-                                <div class="message-content">
-                                    <div class="context-indicators">
-                                        <span class="context-tag symptoms">🔍 Symptoms: ${resolveDisplaySymptoms(responseData).length}</span>
-                                        <span class="context-tag confidence">📊 Confidence: ${(responseData.confidence_score * 100).toFixed(0)}%</span>
-                                        <span class="context-tag urgency">⚡ ${(responseData.conversation_context?.urgency_level || 'low').toUpperCase()}</span>
-                                    </div>
-                                    ${formatAssistantResponse(fullText || responseData.response)}
-                                </div>
-                                <div class="timestamp">
-                                    ${new Date().toLocaleTimeString()} 
-                                    <span class="processing-time">(${responseTime.toFixed(2)}s)</span>
-                                    <span class="enhanced-indicator">🧠 RAG Streaming</span>
-                                </div>
-                            `;
-                            
-                            updateContextPanel(responseData);
-                            conversationContext = responseData.conversation_context;
-                            interactionCount++;
-                            updateSessionStats();
-                            await refreshConversationHistoryPanel();
+                        if (sseBuffer.trim()) {
+                            const trailingDataLines = sseBuffer
+                                .split('\n')
+                                .filter((line) => line.startsWith('data:'))
+                                .map((line) => line.slice(5).trimStart());
+                            if (trailingDataLines.length > 0) {
+                                processSseEvent(trailingDataLines.join('\n'));
+                            }
                         }
+
+                        if (!responseData && fullText.trim().length > 0) {
+                            responseData = {
+                                response: fullText,
+                                conversation_context: {},
+                                extracted_entities: {},
+                                symptoms_detected: [],
+                                confidence_score: 0,
+                            };
+                        }
+
+                        if (!responseData) {
+                            throw new Error(streamErrorMessage || 'No response received from streaming endpoint');
+                        }
+
+                        const endTime = Date.now();
+                        const responseTime = (endTime - startTime) / 1000;
+
+                        streamMessageDiv.innerHTML = `
+                            <div class="message-content">
+                                <div class="context-indicators">
+                                    <span class="context-tag symptoms">🔍 Symptoms: ${resolveDisplaySymptoms(responseData).length}</span>
+                                    <span class="context-tag confidence">📊 Confidence: ${((responseData.confidence_score || 0) * 100).toFixed(0)}%</span>
+                                    <span class="context-tag urgency">⚡ ${(responseData.conversation_context?.urgency_level || 'low').toUpperCase()}</span>
+                                </div>
+                                ${formatAssistantResponse(fullText || responseData.response)}
+                            </div>
+                            <div class="timestamp">
+                                ${new Date().toLocaleTimeString()} 
+                                <span class="processing-time">(${responseTime.toFixed(2)}s)</span>
+                                <span class="enhanced-indicator">🧠 RAG Streaming</span>
+                            </div>
+                        `;
+
+                        updateContextPanel(responseData);
+                        conversationContext = responseData.conversation_context;
+                        interactionCount++;
+                        updateSessionStats();
+                        await refreshConversationHistoryPanel();
                     } catch (streamError) {
                         // Fallback to non-streaming
                         console.log('Streaming unavailable, using standard mode:', streamError);
                         addSystemMessage(`⚠️ Streaming unavailable, fallback to standard response. Reason: ${streamError.message}`);
-                        response = await fetch(`${RAG_ENDPOINT}/api/v1/chat`, {
+                        response = await fetchWithTimeout(`${RAG_ENDPOINT}/api/v1/chat`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -677,7 +753,7 @@ Please use the appropriate mode based on available connections.`);
                                 max_tokens: maxTokens,
                                 temperature: temperature
                             })
-                        });
+                        }, DEFAULT_REQUEST_TIMEOUT_MS);
                         
                         if (!response.ok) {
                             throw new Error('Failed to get response');
@@ -699,7 +775,7 @@ Please use the appropriate mode based on available connections.`);
                     
                 } else {
                     // Direct LLM call
-                    response = await fetch(`${DIRECT_LLM_ENDPOINT}/diagnose`, {
+                    response = await fetchWithTimeout(`${DIRECT_LLM_ENDPOINT}/diagnose`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -707,7 +783,7 @@ Please use the appropriate mode based on available connections.`);
                             max_tokens: maxTokens,
                             temperature: temperature
                         })
-                    });
+                    }, DEFAULT_REQUEST_TIMEOUT_MS);
                     
                     removeLoadingMessage();
                     const endTime = Date.now();
@@ -948,9 +1024,9 @@ Please use the appropriate mode based on available connections.`);
             if (confirm('Are you sure you want to reset the conversation? All context will be lost.')) {
                 try {
                     console.log('💾 [SESSION] Resetting session:', sessionId.substring(0, 16) + '...');
-                    await fetch(`${RAG_ENDPOINT}/api/v1/conversation/${sessionId}`, {
+                    await fetchWithTimeout(`${RAG_ENDPOINT}/api/v1/conversation/${sessionId}`, {
                         method: 'DELETE'
-                    });
+                    }, 10000);
                     
                     // Clear local storage Session ID to start completely fresh
                     localStorage.removeItem('medical_rag_session_id');
